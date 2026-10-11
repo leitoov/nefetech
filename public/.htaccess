@@ -1,7 +1,7 @@
 RewriteEngine on
 
 # Bloquear acceso web directo a archivos sensibles (.env, .git, etc.)
-<FilesMatch "^\.env|config\.php$">
+<FilesMatch "^(config\.php|\.env)$">
   Order allow,deny
   Deny from all
 </FilesMatch>

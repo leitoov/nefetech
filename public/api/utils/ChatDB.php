@@ -114,6 +114,12 @@ class ChatDB {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX (lead_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS budget_configs (
+                    config_key VARCHAR(100) PRIMARY KEY,
+                    config_value TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
     }
@@ -264,5 +270,72 @@ class ChatDB {
         $stmt = $db->prepare("SELECT * FROM lead_replies WHERE lead_id = ? ORDER BY created_at ASC");
         $stmt->execute([$leadId]);
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtiene la configuración de parámetros de la calculadora de presupuestos
+     */
+    public static function getBudgetConfigs(): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->query("SELECT config_key, config_value FROM budget_configs");
+        $rows = $stmt->fetchAll();
+        $configs = [];
+        foreach ($rows as $r) {
+            $configs[$r['config_key']] = json_decode($r['config_value'], true) ?? $r['config_value'];
+        }
+
+        // Valores por defecto predefinidos en USD si la tabla está vacía
+        $defaults = [
+            'hourly_rate' => 35, // USD por hora base
+            'languages' => [
+                ['name' => 'PHP / Laravel', 'factor' => 1.0],
+                ['name' => 'Node.js / Express', 'factor' => 1.1],
+                ['name' => 'React / Next.js', 'factor' => 1.15],
+                ['name' => 'Python / FastAPI', 'factor' => 1.25],
+                ['name' => 'Flutter / React Native (Mobile)', 'factor' => 1.3]
+            ],
+            'ia_modules' => [
+                ['name' => 'Sin IA', 'cost_usd' => 0],
+                ['name' => 'Integración Básica (OpenAI / Gemini API)', 'cost_usd' => 250],
+                ['name' => 'RAG Semántico con Base Vectorial', 'cost_usd' => 600],
+                ['name' => 'Agente Autónomo con Function Calling', 'cost_usd' => 1100],
+                ['name' => 'Automatización de Tareas Complejas (Multi-agentes)', 'cost_usd' => 1800]
+            ],
+            'infrastructure' => [
+                'domain_annual_usd' => 18,
+                'server_basic_monthly_usd' => 15,
+                'server_vps_monthly_usd' => 35,
+                'server_cloud_dedicated_monthly_usd' => 90
+            ],
+            'design_levels' => [
+                ['name' => 'Sin diseño (Usar plantilla existente)', 'cost_usd' => 0],
+                ['name' => 'UI Kit Moderno & Responsive (Tailwind)', 'cost_usd' => 180],
+                ['name' => 'Diseño UI/UX a Medida en Figma + Prototipo', 'cost_usd' => 450],
+                ['name' => 'Diseño Premium State-of-the-Art + Microanimaciones', 'cost_usd' => 850]
+            ]
+        ];
+
+        return array_merge($defaults, $configs);
+    }
+
+    /**
+     * Guarda la configuración de la calculadora
+     */
+    public static function saveBudgetConfigs(array $configs): void {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO budget_configs (config_key, config_value) 
+            VALUES (?, ?) 
+            ON DUPLICATE KEY UPDATE config_value = VALUES(config_value)
+        ");
+
+        foreach ($configs as $key => $val) {
+            $valueStr = is_array($val) ? json_encode($val) : (string)$val;
+            $stmt->execute([$key, $valueStr]);
+        }
     }
 }

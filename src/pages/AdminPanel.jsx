@@ -737,6 +737,16 @@ export function AdminPanel() {
       });
     }
 
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + 24);
+    const expirationStr = expirationDate.toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -750,17 +760,16 @@ export function AdminPanel() {
           .logo span { color: #2563eb; }
           .badge { background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 99px; text-transform: uppercase; }
           .meta { font-size: 12px; color: #64748b; line-height: 1.6; }
+          .vigencia-box { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; padding: 10px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-bottom: 24px; display: inline-block; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
           th { background: #f8fafc; text-align: left; padding: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; border-bottom: 1px solid #e2e8f0; }
           td { padding: 14px 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
           .right { text-align: right; }
           .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-          .totals-table { width: 340px; margin-left: auto; margin-bottom: 30px; }
+          .totals-table { width: 380px; margin-left: auto; margin-bottom: 20px; }
           .totals-table td { padding: 8px 12px; font-size: 13px; }
-          .total-box { background: #0f172a; color: white; padding: 20px; border-radius: 16px; margin-top: 20px; text-align: right; }
-          .total-box .title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 4px; }
-          .total-box .val-usd { font-size: 28px; font-weight: 900; color: #34d399; font-family: monospace; }
-          .total-box .val-ars { font-size: 14px; color: #cbd5e1; margin-top: 4px; }
+          .total-box { background: #0f172a; color: white; padding: 20px 24px; border-radius: 16px; margin-top: 10px; text-align: right; }
+          .total-box .val-usd { font-size: 32px; font-weight: 900; color: #34d399; font-family: monospace; }
           .footer { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px; }
           @media print {
             body { padding: 20px; }
@@ -776,9 +785,12 @@ export function AdminPanel() {
           </div>
           <div style="text-align: right;">
             <div class="badge">Propuesta Comercial</div>
-            <div class="meta" style="margin-top: 6px;">Fecha: ${new Date().toLocaleDateString('es-AR')}</div>
-            <div class="meta">Validez: 15 días corridos</div>
+            <div class="meta" style="margin-top: 6px;">Fecha de emisión: ${new Date().toLocaleDateString('es-AR')}</div>
           </div>
+        </div>
+
+        <div class="vigencia-box">
+          Este presupuesto se encuentra vigente por 24hs (${expirationStr})
         </div>
 
         <table>
@@ -801,15 +813,6 @@ export function AdminPanel() {
         </table>
 
         <table class="totals-table">
-          <tr>
-            <td style="color: #64748b;">Subtotal Directo:</td>
-            <td class="right mono" style="font-weight: 600;">$${subtotalUSD.toLocaleString()} USD</td>
-          </tr>
-          ${marginUSD > 0 ? `
-          <tr>
-            <td style="color: #2563eb;">Margen Comercial (${calcMarginPercent}%):</td>
-            <td class="right mono" style="color: #2563eb; font-weight: 600;">+$${marginUSD.toLocaleString()} USD</td>
-          </tr>` : ''}
           ${discountUSD > 0 ? `
           <tr>
             <td style="color: #059669; font-weight: 700;">Descuento Campaña (${campaignDiscountLabel}):</td>
@@ -823,9 +826,7 @@ export function AdminPanel() {
         </table>
 
         <div class="total-box">
-          <div class="title">Inversión Final Estimada</div>
           <div class="val-usd">$${totalUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>
-          <div class="val-ars">Equivalente aprox: $${totalARS.toLocaleString('es-AR', { maximumFractionDigits: 0 })} ARS (Cotización Dólar Blue: $${blueRate})</div>
         </div>
 
         <div class="footer">

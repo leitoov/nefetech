@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../utils/EnvLoader.php';
 require_once __DIR__ . '/../utils/VectorCache.php';
+require_once __DIR__ . '/../utils/ChatDB.php';
 EnvLoader::load();
 
 $action = $_GET['action'] ?? '';
@@ -25,8 +26,27 @@ $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $apiKey = getenv('GEMINI_API_KEY') ?: 'AQ.Ab8RN6JubsWRM_13vrwiZauRibBPfPmU6KmrJGT8vVeyovQ9ew';
 $model = getenv('GEMINI_MODEL') ?: 'gemini-2.5-flash';
 
+// Detección de IP del usuario
+$clientIp = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+if (strpos($clientIp, ',') !== false) {
+    $clientIp = trim(explode(',', $clientIp)[0]);
+}
+
 try {
     switch ($action) {
+        case 'usage':
+            // Devuelve el estado de uso de preguntas de la IP
+            $usedQuestions = ChatDB::getDemoPdfUsage($clientIp);
+            echo json_encode([
+                'success' => true,
+                'ip' => $clientIp,
+                'used_questions' => $usedQuestions,
+                'max_questions' => 5,
+                'remaining' => max(0, 5 - $usedQuestions),
+                'is_blocked' => $usedQuestions >= 5
+            ]);
+            break;
+
         case 'index':
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 throw new Exception('Método no permitido', 405);
@@ -96,6 +116,19 @@ try {
                 throw new Exception('Método no permitido', 405);
             }
 
+            // VERIFICACIÓN ESTRICTA POR IP: MÁXIMO 5 PREGUNTAS EN TOTAL
+            $currentIpUsage = ChatDB::getDemoPdfUsage($clientIp);
+            if ($currentIpUsage >= 5) {
+                http_response_code(429);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Has alcanzado el límite de 5 preguntas.',
+                    'is_blocked' => true,
+                    'used_questions' => 5
+                ]);
+                exit;
+            }
+
             $question = trim($input['question'] ?? '');
             $vectors = $input['vectors'] ?? [];
 
@@ -106,6 +139,9 @@ try {
             if (empty($vectors) || !is_array($vectors)) {
                 throw new Exception('No hay índice vectorial cargado para consultar.');
             }
+
+            // Incrementar uso de la IP de forma atómica en BD
+            $newIpUsage = ChatDB::incrementDemoPdfUsage($clientIp);
 
             // 1. Vectorizar la pregunta
             $queryEmbedding = VectorCache::generateEmbedding($question, $apiKey);
@@ -187,7 +223,9 @@ Sé preciso, profesional, claro y cita el número de fragmento cuando correspond
                 'success' => true,
                 'question' => $question,
                 'answer' => $answer,
-                'relevant_chunks' => $topContexts
+                'relevant_chunks' => $topContexts,
+                'used_questions' => $newIpUsage,
+                'is_blocked' => $newIpUsage >= 5
             ]);
             break;
 

@@ -139,6 +139,13 @@ class ChatDB {
                     used INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS demo_pdf_usage (
+                    ip_address TEXT PRIMARY KEY,
+                    question_count INTEGER DEFAULT 0,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
             ");
         } else {
             // MySQL
@@ -313,6 +320,13 @@ class ChatDB {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX (email),
                     INDEX (token)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS demo_pdf_usage (
+                    ip_address VARCHAR(45) PRIMARY KEY,
+                    question_count INT DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
@@ -1376,6 +1390,46 @@ PROMPT;
                 $course['duration_hours'],
                 $course['total_modules']
             ]);
+        }
+    }
+
+    // ==========================================
+    // DEMO PDF IP USAGE METHODS
+    // ==========================================
+
+    /**
+     * Obtiene la cantidad de preguntas gastadas por una IP en la demo de PDF
+     */
+    public static function getDemoPdfUsage(string $ip): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT question_count FROM demo_pdf_usage WHERE ip_address = ?");
+        $stmt->execute([$ip]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : 0;
+    }
+
+    /**
+     * Incrementa la cantidad de preguntas consumidas por la IP
+     */
+    public static function incrementDemoPdfUsage(string $ip): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT question_count FROM demo_pdf_usage WHERE ip_address = ?");
+        $stmt->execute([$ip]);
+        $row = $stmt->fetch();
+
+        if ($row) {
+            $newCount = (int)$row['question_count'] + 1;
+            $stmtUp = $db->prepare("UPDATE demo_pdf_usage SET question_count = ?, updated_at = CURRENT_TIMESTAMP WHERE ip_address = ?");
+            $stmtUp->execute([$newCount, $ip]);
+            return $newCount;
+        } else {
+            $stmtIns = $db->prepare("INSERT INTO demo_pdf_usage (ip_address, question_count) VALUES (?, 1)");
+            $stmtIns->execute([$ip]);
+            return 1;
         }
     }
 }

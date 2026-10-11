@@ -121,8 +121,24 @@ export function DemoPortal() {
   const [indexingMsg, setIndexingMsg] = useState('');
   const [pdfUploadError, setPdfUploadError] = useState('');
 
-  // Contador de preguntas (máximo 5)
+  // Contador de preguntas por IP (máximo 5)
   const [questionsUsed, setQuestionsUsed] = useState(0);
+
+  // Consultar uso de la IP al montar el componente
+  useEffect(() => {
+    const fetchIpUsage = async () => {
+      try {
+        const res = await fetch('/api/demo/rag.php?action=usage');
+        const data = await res.json();
+        if (data.success && typeof data.used_questions === 'number') {
+          setQuestionsUsed(data.used_questions);
+        }
+      } catch (e) {
+        console.error('Error fetching IP usage:', e);
+      }
+    };
+    fetchIpUsage();
+  }, []);
 
   const fileInputRef = useRef(null);
   
@@ -131,7 +147,7 @@ export function DemoPortal() {
   const [pdfConversation, setPdfConversation] = useState([
     {
       sender: 'bot',
-      text: '¡Hola! He cargado el documento inicial. Puedes hacer hasta 5 preguntas fundamentadas sobre este PDF, o hacer clic en "Subir tu propio PDF" para analizar cualquier documento de tu empresa (máximo 10 MB).'
+      text: '¡Hola! He cargado el documento inicial. Puedes hacer hasta 5 preguntas fundamentadas sobre este PDF, o hacer clic en "Subir Archivo PDF" para analizar cualquier documento de tu empresa (máximo 10 MB).'
     }
   ]);
 
@@ -201,13 +217,11 @@ export function DemoPortal() {
 
       setPdfText(extractedFullText.trim());
 
-      // Reiniciar contador de preguntas y conversación para el nuevo documento
-      setQuestionsUsed(0);
       setVectorIndex(null);
       setPdfConversation([
         {
           sender: 'bot',
-          text: `Se ha cargado con éxito "${file.name}" (${pdfDoc.numPages} páginas, ${formattedSize}). La IA lo está indexando vectorialmente. Tienes 5 preguntas disponibles para este documento.`
+          text: `Se ha cargado con éxito "${file.name}" (${pdfDoc.numPages} páginas, ${formattedSize}). La IA lo está indexando vectorialmente.`
         }
       ]);
 
@@ -299,6 +313,9 @@ export function DemoPortal() {
       const data = await res.json();
 
       if (data.success) {
+        if (typeof data.used_questions === 'number') {
+          setQuestionsUsed(data.used_questions);
+        }
         setPdfConversation(prev => [
           ...prev, 
           { 
@@ -308,9 +325,12 @@ export function DemoPortal() {
           }
         ]);
       } else {
+        if (data.is_blocked || data.used_questions >= 5) {
+          setQuestionsUsed(5);
+        }
         setPdfConversation(prev => [
           ...prev, 
-          { sender: 'bot', text: 'Lo siento, no pude procesar la consulta: ' + (data.error || '') }
+          { sender: 'bot', text: data.error || 'Lo siento, no pude procesar la consulta.' }
         ]);
       }
     } catch (err) {

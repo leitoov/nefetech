@@ -1,6 +1,7 @@
 <?php
 /**
  * LeadMailer - Notifica al equipo de Nefetech sobre nuevos leads recibidos en el chat web
+ * Formato: Planilla formal sin iconos, limpia y optimizada para impresión (Print-ready).
  */
 require_once __DIR__ . '/ChatDB.php';
 
@@ -19,11 +20,10 @@ class LeadMailer {
             $contacts['emails'] = array_unique($matches[0]);
         }
 
-        // Detección de teléfonos (formatos comunes: +54, 11..., 15..., con guiones o espacios)
+        // Detección de teléfonos
         if (preg_match_all('/(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{3,4}/', $text, $matches)) {
             foreach ($matches[0] as $candidate) {
                 $digits = preg_replace('/\D/', '', $candidate);
-                // Si tiene al menos 8 dígitos numéricos, lo consideramos teléfono
                 if (strlen($digits) >= 8 && strlen($digits) <= 15) {
                     $contacts['phones'][] = trim($candidate);
                 }
@@ -35,79 +35,131 @@ class LeadMailer {
     }
 
     /**
-     * Envía un email con los datos de contacto y el historial completo del chat
+     * Envía un email en formato de planilla formal para impresión
      */
     public static function sendLeadNotification(string $sessionId, string $leadMessage, string $ip = '', string $userAgent = ''): bool {
         $contacts = self::extractContactInfo($leadMessage);
         $emailList = !empty($contacts['emails']) ? implode(', ', $contacts['emails']) : 'No especificado';
         $phoneList = !empty($contacts['phones']) ? implode(', ', $contacts['phones']) : 'No especificado';
+        $fechaActual = date('d/m/Y H:i:s');
 
         // Obtener historial completo de la conversación
         $history = ChatDB::getHistory($sessionId);
-        $historyHtml = '';
-        foreach ($history as $h) {
-            $senderLabel = $h['sender'] === 'user' ? '👤 Usuario' : '🤖 Asistente Nefetech';
-            $senderColor = $h['sender'] === 'user' ? '#2563eb' : '#475569';
-            $time = htmlspecialchars($h['created_at']);
-            $msg = nl2br(htmlspecialchars($h['message']));
+        $historyRows = '';
+        $itemNum = 1;
 
-            $historyHtml .= "
-                <div style='margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid {$senderColor}; border-radius: 6px;'>
-                    <div style='font-size: 11px; color: #94a3b8; margin-bottom: 4px;'><strong>{$senderLabel}</strong> • {$time}</div>
-                    <div style='font-size: 13px; color: #1e293b; line-height: 1.5;'>{$msg}</div>
-                </div>
+        foreach ($history as $h) {
+            $emisor = $h['sender'] === 'user' ? 'Cliente / Interesado' : 'Asistente Comercial';
+            $fechaMensaje = !empty($h['created_at']) ? htmlspecialchars($h['created_at']) : '-';
+            $contenido = nl2br(htmlspecialchars($h['message']));
+
+            $historyRows .= "
+                <tr>
+                    <td style='border: 1px solid #333333; padding: 6px 8px; text-align: center; font-size: 11px; vertical-align: top; width: 35px;'>{$itemNum}</td>
+                    <td style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; vertical-align: top; width: 140px; font-weight: bold;'>{$emisor}</td>
+                    <td style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; vertical-align: top; width: 110px; color: #555555;'>{$fechaMensaje}</td>
+                    <td style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; vertical-align: top; line-height: 1.4;'>{$contenido}</td>
+                </tr>
             ";
+            $itemNum++;
         }
 
         $to = 'comercial@nefetech.online';
         $cc = 'leonelexequielvincent@gmail.com';
-        $subject = '🚀 Nuevo Lead Recibido desde el Chat de Nefetech';
+        $subject = 'SOLICITUD DE PRESUPUESTO Y CONTACTO - ' . ($contacts['emails'][0] ?? $contacts['phones'][0] ?? $sessionId);
 
         $bodyHtml = "
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset='utf-8'>
-            <title>Nuevo Lead Nefetech</title>
+            <title>Planilla de Requerimiento y Presupuesto - Nefetech</title>
+            <style>
+                @media print {
+                    body { margin: 0; padding: 0; background-color: #ffffff; }
+                    .page-container { width: 100% !important; border: none !important; }
+                }
+            </style>
         </head>
-        <body style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 25px; margin: 0;'>
-            <div style='max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
-                <div style='background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%); padding: 24px; color: #ffffff;'>
-                    <h2 style='margin: 0; font-size: 20px; font-weight: 700;'>Nuevo Lead desde nefetech.online</h2>
-                    <p style='margin: 6px 0 0; font-size: 13px; opacity: 0.9;'>Un usuario ha compartido sus datos de contacto y requerimiento en el chat inteligente.</p>
+        <body style='font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; margin: 0; padding: 20px;'>
+            <div class='page-container' style='max-width: 780px; margin: 0 auto; background-color: #ffffff; border: 1px solid #000000; padding: 24px;'>
+                
+                <!-- Encabezado de Planilla Formal -->
+                <table style='width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 2px solid #000000; padding-bottom: 12px;'>
+                    <tr>
+                        <td style='vertical-align: top;'>
+                            <div style='font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;'>NEFETECH</div>
+                            <div style='font-size: 12px; color: #333333; margin-top: 3px;'>Desarrollo de Software a Medida | Soluciones de IA | Consultoria</div>
+                            <div style='font-size: 11px; color: #555555; margin-top: 2px;'>Web: nefetech.online | Email: comercial@nefetech.online</div>
+                        </td>
+                        <td style='vertical-align: top; text-align: right;'>
+                            <div style='font-size: 14px; font-weight: bold; text-transform: uppercase;'>PLANILLA DE CONTACTO Y REQUERIMIENTO</div>
+                            <div style='font-size: 11px; color: #333333; margin-top: 4px;'>ID Registro: " . htmlspecialchars($sessionId) . "</div>
+                            <div style='font-size: 11px; color: #333333;'>Fecha de Emision: {$fechaActual}</div>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Seccion 1: Datos de Contacto del Solicitante -->
+                <div style='font-size: 12px; font-weight: bold; text-transform: uppercase; background-color: #f2f2f2; border: 1px solid #333333; padding: 5px 8px; margin-bottom: -1px;'>
+                    1. DATOS DEL CLIENTE / SOLICITANTE
+                </div>
+                <table style='width: 100%; border-collapse: collapse; margin-bottom: 20px;'>
+                    <tr>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; width: 25%; font-size: 11px; font-weight: bold; background-color: #fafafa;'>Correo Electronico:</td>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; width: 75%; font-size: 12px;'><strong>" . htmlspecialchars($emailList) . "</strong></td>
+                    </tr>
+                    <tr>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; font-size: 11px; font-weight: bold; background-color: #fafafa;'>Telefono / WhatsApp:</td>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; font-size: 12px;'><strong>" . htmlspecialchars($phoneList) . "</strong></td>
+                    </tr>
+                    <tr>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; font-size: 11px; font-weight: bold; background-color: #fafafa;'>Direccion IP de Origen:</td>
+                        <td style='border: 1px solid #333333; padding: 7px 10px; font-size: 11px; color: #444444;'>" . htmlspecialchars($ip) . "</td>
+                    </tr>
+                </table>
+
+                <!-- Seccion 2: Detalle de la Propuesta / Necesidad Planteada -->
+                <div style='font-size: 12px; font-weight: bold; text-transform: uppercase; background-color: #f2f2f2; border: 1px solid #333333; padding: 5px 8px; margin-bottom: -1px;'>
+                    2. DESCRIPCION DEL REQUERIMIENTO O CONSULTA
+                </div>
+                <div style='border: 1px solid #333333; padding: 12px; font-size: 12px; line-height: 1.5; margin-bottom: 20px; min-height: 50px; background-color: #ffffff;'>
+                    " . nl2br(htmlspecialchars($leadMessage)) . "
                 </div>
 
-                <div style='padding: 24px;'>
-                    <h3 style='margin: 0 0 14px; font-size: 15px; color: #0f172a;'>📋 Datos de Contacto Detectados</h3>
-                    <table style='width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;'>
-                        <tr>
-                            <td style='padding: 8px 12px; background: #f8fafc; font-weight: 600; width: 140px; color: #475569; border: 1px solid #e2e8f0;'>📧 Email:</td>
-                            <td style='padding: 8px 12px; color: #0f172a; border: 1px solid #e2e8f0;'><strong>{$emailList}</strong></td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 8px 12px; background: #f8fafc; font-weight: 600; color: #475569; border: 1px solid #e2e8f0;'>📱 Teléfono / WA:</td>
-                            <td style='padding: 8px 12px; color: #0f172a; border: 1px solid #e2e8f0;'><strong>{$phoneList}</strong></td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 8px 12px; background: #f8fafc; font-weight: 600; color: #475569; border: 1px solid #e2e8f0;'>🌐 IP / Origen:</td>
-                            <td style='padding: 8px 12px; color: #64748b; border: 1px solid #e2e8f0;'>{$ip}</td>
-                        </tr>
-                    </table>
-
-                    <h3 style='margin: 0 0 10px; font-size: 15px; color: #0f172a;'>💬 Mensaje de Cierre / Necesidad</h3>
-                    <div style='background: #eff6ff; border: 1px solid #bfdbfe; padding: 14px; border-radius: 8px; color: #1e3a8a; font-size: 13px; line-height: 1.5; margin-bottom: 24px;'>
-                        " . nl2br(htmlspecialchars($leadMessage)) . "
-                    </div>
-
-                    <h3 style='margin: 0 0 14px; font-size: 15px; color: #0f172a;'>📜 Historial Completo de la Conversación</h3>
-                    <div style='max-height: 400px; overflow-y: auto;'>
-                        {$historyHtml}
-                    </div>
+                <!-- Seccion 3: Historial Cronologico de Conversacion -->
+                <div style='font-size: 12px; font-weight: bold; text-transform: uppercase; background-color: #f2f2f2; border: 1px solid #333333; padding: 5px 8px; margin-bottom: -1px;'>
+                    3. REGISTRO CRONOLOGICO DE CONSULTAS (INTERCAMBIO EN CHAT)
                 </div>
+                <table style='width: 100%; border-collapse: collapse; margin-bottom: 24px;'>
+                    <thead>
+                        <tr style='background-color: #ebebeb;'>
+                            <th style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; text-align: center; width: 35px;'>Nro</th>
+                            <th style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; text-align: left; width: 140px;'>Interlocutor</th>
+                            <th style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; text-align: left; width: 110px;'>Fecha / Hora</th>
+                            <th style='border: 1px solid #333333; padding: 6px 8px; font-size: 11px; text-align: left;'>Mensaje Registrado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {$historyRows}
+                    </tbody>
+                </table>
 
-                <div style='background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;'>
-                    Nefetech AI Platform • Notificación automática de lead • https://nefetech.online
-                </div>
+                <!-- Seccion 4: Firmas / Pie de Pagina de Control -->
+                <table style='width: 100%; border-collapse: collapse; margin-top: 30px; border-top: 1px dashed #666666; padding-top: 16px;'>
+                    <tr>
+                        <td style='font-size: 10px; color: #666666; vertical-align: top; width: 60%;'>
+                            Documento generado automaticamente por la plataforma de Nefetech.<br>
+                            Valido para analisis comercial y seguimiento de requerimiento de software.
+                        </td>
+                        <td style='font-size: 11px; text-align: right; vertical-align: top; width: 40%;'>
+                            <div style='margin-top: 25px; border-top: 1px solid #000000; display: inline-block; width: 180px; text-align: center; padding-top: 4px;'>
+                                Responsable Comercial
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+
             </div>
         </body>
         </html>
@@ -116,7 +168,7 @@ class LeadMailer {
         $headers = [
             'MIME-Version: 1.0',
             'Content-type: text/html; charset=utf-8',
-            'From: Nefetech Chat <comercial@nefetech.online>',
+            'From: Nefetech Notificaciones <comercial@nefetech.online>',
             'Reply-To: comercial@nefetech.online',
             'Cc: ' . $cc,
             'X-Mailer: PHP/' . phpversion()

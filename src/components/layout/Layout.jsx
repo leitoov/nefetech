@@ -1,7 +1,7 @@
 import React from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import { WhatsAppFloating } from '../common/WhatsAppFloating';
+import { FloatingActions } from '../common/FloatingActions';
 
 export function Layout({ children }) {
   return (
@@ -11,7 +11,7 @@ export function Layout({ children }) {
         {children}
       </main>
       <Footer />
-      <WhatsAppFloating />
+      <FloatingActions />
     </div>
   );
 }

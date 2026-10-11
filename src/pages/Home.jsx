@@ -192,9 +192,6 @@ export function Home() {
                       <Icon name={service.icon} size={28} />
                     </div>
                     <div>
-                      <span className={`text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-md ${service.colorScheme.badgeBg}`}>
-                        Servicio 0{idx + 1}
-                      </span>
                       <h3 className="text-2xl font-bold text-slate-900 mt-1">
                         {service.title}
                       </h3>

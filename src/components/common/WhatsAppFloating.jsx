@@ -17,7 +17,6 @@ export function WhatsAppFloating() {
       </span>
       {/* Indicador de estado en línea */}
       <span className="absolute top-1 right-1 flex h-3 w-3">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
         <span className="relative inline-flex rounded-full h-3 w-3 bg-white border-2 border-emerald-500"></span>
       </span>
     </a>

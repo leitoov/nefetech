@@ -50,6 +50,7 @@ export function AdminPanel() {
   const [isApplyingIncrease, setIsApplyingIncrease] = useState(false);
   const [increaseSuccessMsg, setIncreaseSuccessMsg] = useState('');
   const [saveConfigMsg, setSaveConfigMsg] = useState('');
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   // Modo de la Calculadora: 'manual' o 'ia'
   const [calcMode, setCalcMode] = useState('ia');
@@ -2525,30 +2526,221 @@ export function AdminPanel() {
                   Sin registros de cambios previos.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {configHistory.map((h) => (
-                    <div key={h.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            h.action_type === 'percentage_increase' 
-                              ? 'bg-amber-100 text-amber-800' 
-                              : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            {h.action_type === 'percentage_increase' ? `Aumento +${h.percentage_applied}%` : 'Edición Manual'}
-                          </span>
-                          <span className="font-bold text-slate-800">{h.description}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          Modificado por: <strong className="text-slate-600">{h.created_by}</strong>
-                        </div>
-                      </div>
+                <div className="space-y-4">
+                  {configHistory.map((h) => {
+                    const isExpanded = expandedHistoryId === h.id;
+                    let snapshot = null;
+                    try {
+                      snapshot = typeof h.snapshot_configs === 'string'
+                        ? JSON.parse(h.snapshot_configs)
+                        : h.snapshot_configs;
+                    } catch (e) {
+                      console.error('Error parsing snapshot', e);
+                    }
 
-                      <div className="text-slate-400 text-[11px] font-mono sm:text-right shrink-0">
-                        {new Date(h.created_at).toLocaleString()}
+                    return (
+                      <div
+                        key={h.id}
+                        className={`rounded-2xl border transition-all duration-200 ${
+                          isExpanded 
+                            ? 'bg-white border-amber-300 shadow-md ring-1 ring-amber-400/20' 
+                            : 'bg-slate-50/90 border-slate-200 hover:bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        {/* Cabecera del Item / Desplegable */}
+                        <div
+                          onClick={() => setExpandedHistoryId(isExpanded ? null : h.id)}
+                          className="p-4 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs select-none"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                h.action_type === 'percentage_increase' 
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-200' 
+                                  : 'bg-blue-100 text-blue-900 border border-blue-200'
+                              }`}>
+                                {h.action_type === 'percentage_increase' ? `Aumento +${h.percentage_applied}%` : 'Edición Manual'}
+                              </span>
+                              <span className="font-bold text-slate-900 text-sm">{h.description}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                              <span>Modificado por: <strong className="text-slate-700">{h.created_by || 'admin'}</strong></span>
+                              <span>•</span>
+                              <span>Tarifa base en ese momento: <strong className="text-emerald-700 font-mono">${snapshot?.hourly_rate || 35} USD/h</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                            <div className="text-slate-400 text-[11px] font-mono">
+                              {new Date(h.created_at).toLocaleString()}
+                            </div>
+                            <button
+                              type="button"
+                              className={`p-1.5 rounded-xl border transition-all ${
+                                isExpanded 
+                                  ? 'bg-amber-500 text-white border-amber-500 rotate-180' 
+                                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                              }`}
+                              title={isExpanded ? "Ocultar detalle de tarifas" : "Desplegar detalle de tarifas"}
+                            >
+                              <Icon name="expand_more" size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* PANEL DESPLEGABLE CON EL DETALLE COMPLETO DEL CAMBIO */}
+                        {isExpanded && (
+                          <div className="p-5 border-t border-slate-100 bg-slate-50/60 rounded-b-2xl animate-in fade-in duration-150 space-y-6">
+                            
+                            {!snapshot ? (
+                              <div className="text-xs text-slate-400 italic">No hay datos de captura detallada para este registro.</div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                                  <div className="flex items-center gap-2">
+                                    <Icon name="tune" size={16} className="text-amber-600" />
+                                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                      Tarifas Resultantes en este Registro
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-slate-500">
+                                    Valores exactos en USD almacenados
+                                  </span>
+                                </div>
+
+                                {/* 1. Tarifa Base e Infraestructura */}
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tarifa Base</span>
+                                    <span className="text-base font-black font-mono text-emerald-600">${snapshot.hourly_rate} USD/h</span>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Dominio Anual</span>
+                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.domain_annual_usd || 18} USD</span>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Hosting Básico</span>
+                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_basic_monthly_usd || 15} USD/m</span>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">VPS Mensual</span>
+                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_vps_monthly_usd || 35} USD/m</span>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Cloud Dedicado</span>
+                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_cloud_dedicated_monthly_usd || 90} USD/m</span>
+                                  </div>
+                                </div>
+
+                                {/* 2. Stack Combos */}
+                                {snapshot.stack_combos && snapshot.stack_combos.length > 0 && (
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <Icon name="layers" size={14} className="text-indigo-600" />
+                                      <span>Combos de Stack (Precio / Hora)</span>
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                      {snapshot.stack_combos.map((combo, cIdx) => (
+                                        <div key={cIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                                          <div>
+                                            <span className="font-bold text-slate-800 block truncate">{combo.name}</span>
+                                            <span className="text-[10px] text-slate-400">{combo.frontend} + {combo.backend}</span>
+                                          </div>
+                                          <span className="font-mono font-bold text-emerald-600 shrink-0 ml-2">
+                                            ${combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40)} USD/h
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 3. Lenguajes Individuales (Frontend y Backend) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Frontend */}
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <Icon name="code" size={14} className="text-blue-600" />
+                                      <span>Tecnologías Frontend (USD / Hora)</span>
+                                    </h4>
+                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                      {snapshot.frontend_techs?.map((front, fIdx) => (
+                                        <div key={fIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                          <span className="font-medium text-slate-800">{front.name}</span>
+                                          <span className="font-mono font-bold text-emerald-600">
+                                            ${front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38)} USD/h
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Backend */}
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <Icon name="terminal" size={14} className="text-indigo-600" />
+                                      <span>Tecnologías Backend (USD / Hora)</span>
+                                    </h4>
+                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                      {snapshot.backend_techs?.map((back, bIdx) => (
+                                        <div key={bIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                          <span className="font-medium text-slate-800">{back.name}</span>
+                                          <span className="font-mono font-bold text-emerald-600">
+                                            ${back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40)} USD/h
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 4. Módulos de IA y Asesoría */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Módulos de IA */}
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <Icon name="smart_toy" size={14} className="text-purple-600" />
+                                      <span>Módulos de Inteligencia Artificial (Costo Fijo)</span>
+                                    </h4>
+                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                      {snapshot.ia_modules?.map((ia, iaIdx) => (
+                                        <div key={iaIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                          <span className="font-medium text-slate-800 truncate pr-2">{ia.name}</span>
+                                          <span className="font-mono font-bold text-purple-700 shrink-0">
+                                            ${ia.cost_usd} USD
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Asesoría y Consultoría */}
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <Icon name="psychology" size={14} className="text-amber-600" />
+                                      <span>Módulos de Asesoría (Costo Fijo)</span>
+                                    </h4>
+                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                      {snapshot.consultoria_modules?.map((c, cIdx) => (
+                                        <div key={cIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                          <span className="font-medium text-slate-800 truncate pr-2">{c.name}</span>
+                                          <span className="font-mono font-bold text-amber-700 shrink-0">
+                                            ${c.cost_usd} USD
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+
+                              </>
+                            )}
+
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

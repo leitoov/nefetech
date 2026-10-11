@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../components/common/Icon';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 

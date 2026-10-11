@@ -5,6 +5,7 @@ import { Terminos } from './pages/Terminos';
 import { Privacidad } from './pages/Privacidad';
 import { AdminPanel } from './pages/AdminPanel';
 import { MentoriaPortal } from './pages/MentoriaPortal';
+import { DemoPortal } from './pages/DemoPortal';
 
 function App() {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
@@ -33,7 +34,15 @@ function App() {
     };
   }, []);
 
-  // 1. Subdominio mentorias.nefetech.online o ruta /mentorias
+  // 1. Subdominio demo.nefetech.online o ruta /demo o #demo
+  const isSubdomainDemo = window.location.hostname.startsWith('demo.');
+  const isDemoRoute = currentPath.startsWith('/demo') || currentHash === '#demo';
+
+  if (isSubdomainDemo || isDemoRoute) {
+    return <DemoPortal />;
+  }
+
+  // 2. Subdominio mentorias.nefetech.online o ruta /mentorias
   const isSubdomainMentoria = window.location.hostname.startsWith('mentorias.');
   const isMentoriaRoute = currentPath.startsWith('/mentorias') || currentHash === '#mentorias';
 

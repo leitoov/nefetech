@@ -33,20 +33,12 @@ $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $sessionId = $authenticatedUser['sub'] ?? ('session_' . md5($ip . $userAgent));
 
-// 3. VALIDAR LÍMITE DE MENSAJES (MÁXIMO 10 MENSAJES POR SESIÓN)
-$session = ChatDB::getSession($sessionId, $ip, $userAgent);
-$maxMessages = 10;
+require_once __DIR__ . '/utils/LeadMailer.php';
 
-if ($session['message_count'] >= $maxMessages) {
-    echo json_encode([
-        'success' => true,
-        'limit_reached' => true,
-        'derivacion' => true,
-        'respuesta' => "Te derivaré con alguien de nuestro equipo para seguir con este tema en detalle.",
-        'whatsapp_url' => "https://wa.me/5491170605129?text=Hola,%20estaba%20consultando%20con%20el%20asistente%20de%20IA%20y%20quiero%20continuar%20mi%20consulta."
-    ]);
-    exit;
-}
+// 3. GESTIÓN DE SESIÓN Y LÍMITE DE CONSULTAS
+$session = ChatDB::getSession($sessionId, $ip, $userAgent);
+$maxQuestions = 10; // 10 preguntas de IA permitidas
+$currentSessionCount = (int)$session['message_count'];
 
 // 4. VALIDAR INTEGRIDAD Y FIRMA DE LA PETICIÓN
 $rawInput = file_get_contents('php://input');
@@ -62,10 +54,10 @@ if (empty($userMessage)) {
     exit;
 }
 
-if (mb_strlen($userMessage, 'UTF-8') > 350) {
+if (mb_strlen($userMessage, 'UTF-8') > 500) {
     http_response_code(400);
     echo json_encode([
-        'error' => 'Tu mensaje supera el límite de 350 caracteres. Por favor envía una consulta más concisa o contáctanos por WhatsApp.'
+        'error' => 'Tu mensaje supera el límite de caracteres. Por favor envía un resumen de tu consulta o datos de contacto.'
     ]);
     exit;
 }
@@ -74,16 +66,38 @@ if (mb_strlen($userMessage, 'UTF-8') > 350) {
 ChatDB::logMessage($sessionId, 'user', $userMessage, (int)(mb_strlen($userMessage) / 4));
 $currentCount = ChatDB::incrementMessageCount($sessionId);
 
-// Si este era el mensaje número 10, responder con derivación directa
-if ($currentCount >= $maxMessages) {
-    $derivacionMsg = "Te derivaré con alguien de nuestro equipo para seguir con este tema en detalle.";
-    ChatDB::logMessage($sessionId, 'bot', $derivacionMsg);
+// CASO A: Si el usuario ya había recibido la solicitud de datos de contacto (mensaje > 10)
+// procesamos su mensaje de cierre, enviamos el mail con el lead y finalizamos amablemente
+if ($currentSessionCount >= $maxQuestions) {
+    // Enviar notificación por correo al equipo comercial
+    try {
+        LeadMailer::sendLeadNotification($sessionId, $userMessage, $ip, $userAgent);
+    } catch (Exception $e) {
+        // Silencioso
+    }
+
+    $finalReply = "¡Muchas gracias! Ya recibimos tu mensaje y tus datos. Nuestro equipo comercial analizará tu proyecto y se pondrá en contacto a la brevedad.\n\n(Si en algún momento prefieres escribirnos directamente, también estamos disponibles en WhatsApp o en comercial@nefetech.online).";
+    ChatDB::logMessage($sessionId, 'bot', $finalReply, 0);
+
     echo json_encode([
         'success' => true,
+        'lead_submitted' => true,
         'limit_reached' => true,
-        'derivacion' => true,
-        'respuesta' => $derivacionMsg,
-        'whatsapp_url' => "https://wa.me/5491170605129?text=Hola,%20estaba%20consultando%20con%20el%20asistente%20de%20IA%20y%20quiero%20continuar%20mi%20consulta."
+        'respuesta' => $finalReply
+    ]);
+    exit;
+}
+
+// CASO B: Si este mensaje es exactamente el número 10, le pedimos amablemente que nos deje sus datos y necesidad
+if ($currentCount >= $maxQuestions) {
+    $leadPrompt = "Para profundizar en tu idea y armarte una propuesta a medida, déjanos en un solo mensaje tu necesidad y datos de contacto (email o WhatsApp). Nuestro equipo comercial te responderá a la brevedad.";
+    ChatDB::logMessage($sessionId, 'bot', $leadPrompt, 0);
+
+    echo json_encode([
+        'success' => true,
+        'ask_contact_info' => true,
+        'remaining_messages' => 0,
+        'respuesta' => $leadPrompt
     ]);
     exit;
 }
@@ -103,7 +117,7 @@ if (preg_match($saludosRegex, $cleanMsg) || in_array($cleanMsg, ['hola', 'buenas
         'success' => true,
         'greeting_intercepted' => true,
         'messages_used' => $currentCount,
-        'remaining_messages' => $maxMessages - $currentCount,
+        'remaining_messages' => max(0, $maxQuestions - $currentCount),
         'respuesta' => $saludoResponse
     ]);
     exit;
@@ -120,7 +134,7 @@ if (preg_match($preciosRegex, $cleanMsg)) {
         'success' => true,
         'pricing_intercepted' => true,
         'messages_used' => $currentCount,
-        'remaining_messages' => $maxMessages - $currentCount,
+        'remaining_messages' => max(0, $maxQuestions - $currentCount),
         'respuesta' => $precioResponse
     ]);
     exit;
@@ -134,7 +148,7 @@ if (empty($apiKey) || str_starts_with($apiKey, 'tu_')) {
     echo json_encode([
         'success' => true,
         'authenticated_as' => $sessionId,
-        'remaining_messages' => $maxMessages - $currentCount,
+        'remaining_messages' => max(0, $maxQuestions - $currentCount),
         'respuesta' => "¡Hola! Soy el asistente de Nefetech.\n¿En qué puedo ayudarte?",
         'modo' => 'demo'
     ]);
@@ -157,7 +171,7 @@ try {
             'similarity' => $searchResult['similarity'],
             'matched_query' => $searchResult['query_matched'],
             'messages_used' => $currentCount,
-            'remaining_messages' => $maxMessages - $currentCount,
+            'remaining_messages' => max(0, $maxQuestions - $currentCount),
             'respuesta' => $cachedReply
         ]);
         exit;
@@ -265,6 +279,6 @@ echo json_encode([
     'success' => true,
     'model' => $model,
     'messages_used' => $currentCount,
-    'remaining_messages' => $maxMessages - $currentCount,
+    'remaining_messages' => max(0, $maxQuestions - $currentCount),
     'respuesta' => $botReply
 ]);

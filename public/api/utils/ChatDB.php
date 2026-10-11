@@ -143,4 +143,14 @@ class ChatDB {
         ");
         $stmt->execute([$sessionId, $sender, $message, $tokens]);
     }
+
+    /**
+     * Obtiene el historial completo de mensajes de una sesión
+     */
+    public static function getHistory(string $sessionId): array {
+        $db = self::getConnection();
+        $stmt = $db->prepare("SELECT sender, message, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
+        $stmt->execute([$sessionId]);
+        return $stmt->fetchAll();
+    }
 }

@@ -4,29 +4,21 @@ import { WhatsAppIcon } from './WhatsAppIcon';
 import { sendChatMessage } from '../../services/api';
 import { WHATSAPP_URL } from '../../utils/constants';
 
-const MAX_CHAR_LIMIT = 350;
+const MAX_CHAR_LIMIT = 500;
 
 /**
- * Renderiza el texto del mensaje detectando automáticamente números de WhatsApp,
- * menciones a WhatsApp y correos electrónicos para convertirlos en enlaces clicables directos.
+ * Renderiza el texto del mensaje detectando números de WhatsApp y correos electrónicos
+ * para convertirlos en enlaces interactivos y limpios.
  */
 function renderMessageWithLinks(text) {
   if (!text) return null;
 
-  // Regex combinada para capturar correos, números con formato internacional y URLs
-  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-  const phoneRegex = /(\+54\s?9?\s?11\s?\d{4}[-\s]?\d{4}|\+5491170605129)/g;
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-  // Si hay saltos de línea, procesamos por líneas para preservar diseño
   const lines = text.split('\n');
 
   return lines.map((line, lineIdx) => {
-    // Tokenizar elementos especiales en la línea
     const tokens = [];
     let lastIndex = 0;
 
-    // Expresión combinada
     const combinedRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+54\s?9?\s?11\s?\d{4}[-\s]?\d{4}|\+5491170605129)|(https?:\/\/[^\s]+)/gi;
     let match;
 
@@ -98,7 +90,6 @@ function renderMessageWithLinks(text) {
             );
           }
 
-          // Si el texto plano contiene la palabra "WhatsApp" o "mail" sin enlace directo, dar un toque interactivo
           return <span key={tokIdx}>{token.val}</span>;
         })}
         {lineIdx < lines.length - 1 && <br />}
@@ -129,14 +120,9 @@ export function AIChatModal({ isOpen, onClose }) {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAskingContact, setIsAskingContact] = useState(false);
   const [isLimitReached, setIsLimitReached] = useState(() => {
     return localStorage.getItem('nefetech_chat_limit_reached') === 'true';
-  });
-  const [whatsappDerivacionUrl, setWhatsappDerivacionUrl] = useState(() => {
-    return (
-      localStorage.getItem('nefetech_chat_wa_url') ||
-      'https://wa.me/5491170605129?text=Hola,%20estaba%20consultando%20con%20el%20asistente%20de%20IA%20y%20quiero%20continuar%20mi%20consulta.'
-    );
   });
 
   const messagesEndRef = useRef(null);
@@ -148,7 +134,7 @@ export function AIChatModal({ isOpen, onClose }) {
     }
   }, [messages, isOpen]);
 
-  // Bloquear scroll de fondo en móviles cuando el chat está abierto a pantalla completa
+  // Bloquear scroll de fondo en móviles cuando el chat está abierto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -186,13 +172,16 @@ export function AIChatModal({ isOpen, onClose }) {
     try {
       const data = await sendChatMessage(trimmed);
 
-      if (data.limit_reached || data.derivacion) {
+      // Si el bot solicita datos de contacto para cerrar la propuesta
+      if (data.ask_contact_info) {
+        setIsAskingContact(true);
+      }
+
+      // Si el usuario ya envió su propuesta con datos y el lead se procesó
+      if (data.lead_submitted || data.limit_reached) {
         setIsLimitReached(true);
+        setIsAskingContact(false);
         localStorage.setItem('nefetech_chat_limit_reached', 'true');
-        if (data.whatsapp_url) {
-          setWhatsappDerivacionUrl(data.whatsapp_url);
-          localStorage.setItem('nefetech_chat_wa_url', data.whatsapp_url);
-        }
       }
 
       const botText = data.respuesta || data.error || 'No pudimos procesar tu mensaje en este momento.';
@@ -203,8 +192,6 @@ export function AIChatModal({ isOpen, onClose }) {
           sender: 'bot',
           text: botText,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isDerivacion: Boolean(data.derivacion || data.limit_reached),
-          whatsappUrl: data.whatsapp_url,
         },
       ]);
     } catch {
@@ -213,7 +200,7 @@ export function AIChatModal({ isOpen, onClose }) {
         {
           id: (Date.now() + 1).toString(),
           sender: 'bot',
-          text: 'Hubo un error de conexión con el servidor. Puedes escribirnos directamente por WhatsApp (+54 9 11 7060-5129) o a comercial@nefetech.online.',
+          text: 'Hubo un error de conexión con el servidor. Puedes escribirnos directamente a comercial@nefetech.online o por WhatsApp al +54 9 11 7060-5129.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -232,7 +219,10 @@ export function AIChatModal({ isOpen, onClose }) {
       },
     ];
     setMessages(welcome);
+    setIsLimitReached(false);
+    setIsAskingContact(false);
     localStorage.removeItem('nefetech_chat_history');
+    localStorage.removeItem('nefetech_chat_limit_reached');
   };
 
   return (
@@ -244,10 +234,10 @@ export function AIChatModal({ isOpen, onClose }) {
         aria-hidden="true"
       />
 
-      {/* Contenedor del Chat: En móvil es pantalla completa optimizada tipo App de mensajería, en escritorio es ventana flotante elegante */}
+      {/* Contenedor del Chat */}
       <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-50 sm:w-[420px] sm:max-h-[600px] sm:h-[540px] bg-white sm:rounded-3xl shadow-2xl border-0 sm:border sm:border-slate-200/90 flex flex-col overflow-hidden animate-in fade-in sm:slide-in-from-bottom-5 duration-200">
         
-        {/* Header del Chat */}
+        {/* Header del Chat Limpio (Sin banners ni llamadas redundantes) */}
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 p-4 text-white flex items-center justify-between shadow-md shrink-0 safe-top">
           <div className="flex items-center gap-3">
             <button
@@ -300,23 +290,6 @@ export function AIChatModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Acceso rápido a WhatsApp en cabecera */}
-        <div className="bg-blue-50/80 border-b border-blue-100/80 px-4 py-2 flex items-center justify-between text-xs text-blue-900 shrink-0">
-          <div className="flex items-center gap-1.5 font-medium">
-            <Icon name="support_agent" size={16} className="text-blue-600" />
-            <span>¿Prefieres atención humana?</span>
-          </div>
-          <a
-            href={WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-[11px] transition-colors shadow-2xs"
-          >
-            <WhatsAppIcon size={13} />
-            <span>WhatsApp</span>
-          </a>
-        </div>
-
         {/* Cuerpo de Mensajes */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/80 text-xs sm:text-sm">
           {messages.map((msg) => (
@@ -331,25 +304,10 @@ export function AIChatModal({ isOpen, onClose }) {
                     : 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-xs'
                 }`}
               >
-                {/* Renderizar contenido con hipervínculos automáticos a WhatsApp y Mail */}
+                {/* Texto limpio con enlaces directos para WhatsApp y correo */}
                 <div className="leading-relaxed">
                   {renderMessageWithLinks(msg.text)}
                 </div>
-
-                {/* Si incluye derivación explícita a WhatsApp */}
-                {msg.isDerivacion && (
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <a
-                      href={msg.whatsappUrl || whatsappDerivacionUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs transition-colors"
-                    >
-                      <WhatsAppIcon size={16} />
-                      <span>Continuar por WhatsApp</span>
-                    </a>
-                  </div>
-                )}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 px-1">
                 {msg.time}
@@ -371,24 +329,33 @@ export function AIChatModal({ isOpen, onClose }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input de Envío o Banner de Límite Alcanzado */}
+        {/* Input de Envío o Tarjeta de Cierre Sutil */}
         {isLimitReached ? (
-          <div className="p-4 bg-slate-100 border-t border-slate-200 text-center space-y-2.5 shrink-0 safe-bottom">
-            <p className="text-xs text-slate-700 font-semibold">
-              Has alcanzado el límite de 10 consultas en este chat.
+          <div className="p-4 bg-slate-100/90 border-t border-slate-200 text-center space-y-2 shrink-0 safe-bottom">
+            <div className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 mb-1">
+              <Icon name="check_circle" size={20} />
+            </div>
+            <p className="text-xs text-slate-800 font-semibold">
+              ¡Consulta y requerimiento enviados con éxito!
             </p>
-            <p className="text-[11px] text-slate-500">
-              Continuemos directamente con nuestro equipo comercial para brindarte atención personalizada:
+            <p className="text-[11px] text-slate-500 leading-normal max-w-xs mx-auto">
+              Nuestro equipo comercial ya tiene tu mensaje y te contactará. Si deseas escribirnos directamente, puedes usar{' '}
+              <a 
+                href={WHATSAPP_URL} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-emerald-600 font-semibold underline hover:text-emerald-700"
+              >
+                WhatsApp
+              </a>{' '}
+              o{' '}
+              <a 
+                href="mailto:comercial@nefetech.online" 
+                className="text-blue-600 font-semibold underline hover:text-blue-700"
+              >
+                comercial@nefetech.online
+              </a>.
             </p>
-            <a
-              href={whatsappDerivacionUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-sm transition-colors"
-            >
-              <WhatsAppIcon size={18} />
-              <span>Continuar en WhatsApp</span>
-            </a>
           </div>
         ) : (
           <form 
@@ -401,9 +368,17 @@ export function AIChatModal({ isOpen, onClose }) {
                 value={input}
                 maxLength={MAX_CHAR_LIMIT}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Escribe tu consulta o requerimiento..."
+                placeholder={
+                  isAskingContact 
+                    ? "Escribe aquí tu email o teléfono y detalle de tu proyecto..." 
+                    : "Escribe tu consulta o requerimiento..."
+                }
                 disabled={isLoading}
-                className="flex-1 bg-slate-100/90 border border-slate-200/90 rounded-2xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all disabled:opacity-50"
+                className={`flex-1 border rounded-2xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all disabled:opacity-50 ${
+                  isAskingContact 
+                    ? "bg-blue-50/50 border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100" 
+                    : "bg-slate-100/90 border-slate-200/90 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                }`}
               />
               <button
                 type="submit"

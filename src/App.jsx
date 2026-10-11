@@ -32,10 +32,16 @@ function App() {
     };
   }, []);
 
-  // Panel de administración en admin.nefetech.online, /admin o #admin
+  // Panel de administración: si entran por nefetech.online/admin o #admin, redirigir a admin.nefetech.online
   const isSubdomainAdmin = window.location.hostname.startsWith('admin.');
-  const isAdmin = isSubdomainAdmin || currentPath.startsWith('/admin') || currentHash === '#admin';
-  if (isAdmin) {
+  const isAdminRoute = currentPath.startsWith('/admin') || currentHash === '#admin';
+
+  if (!isSubdomainAdmin && isAdminRoute) {
+    window.location.href = 'https://admin.nefetech.online';
+    return null;
+  }
+
+  if (isSubdomainAdmin || isAdminRoute) {
     return <AdminPanel />;
   }
 

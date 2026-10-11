@@ -16,6 +16,10 @@ RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
 RewriteCond %{HTTP_HOST} ^(www\.)?nefetech\.online
 RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L,QSA]
 
+# Redirigir https://nefetech.online/admin hacia https://admin.nefetech.online
+RewriteCond %{HTTP_HOST} ^(www\.)?nefetech\.online$ [NC]
+RewriteRule ^admin(/.*)?$ https://admin.nefetech.online/ [R=301,L]
+
 # SPA Fallback for Nefetech
 <IfModule mod_rewrite.c>
   RewriteBase /

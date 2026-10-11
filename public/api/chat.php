@@ -6,7 +6,7 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Client-Signature, X-Client-Timestamp');
 
 // Pre-flight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -48,8 +48,11 @@ if ($session['message_count'] >= $maxMessages) {
     exit;
 }
 
-// 4. VALIDAR INPUT (Límite estricto de caracteres)
+// 4. VALIDAR INTEGRIDAD Y FIRMA DE LA PETICIÓN
 $rawInput = file_get_contents('php://input');
+validateRequestSignature($rawInput);
+
+// Validar input y formato
 $data = json_decode($rawInput, true);
 $userMessage = isset($data['mensaje']) ? trim($data['mensaje']) : '';
 
@@ -85,7 +88,28 @@ if ($currentCount >= $maxMessages) {
     exit;
 }
 
-// 5. CARGAR CREDENCIALES DE GEMINI
+// 5. INTERCEPCIÓN RÁPIDA DE SALUDOS BREVES (0 tokens de IA ni embeddings)
+// Si el mensaje es únicamente un saludo simple, respondemos de inmediato con la bienvenida oficial
+$saludosRegex = '/^(hola[\s,!\?]*|buenas[\s,!\?]*|buen dia[\s,!\?]*|buenas tardes[\s,!\?]*|buenas noches[\s,!\?]*|saludos[\s,!\?]*|que tal[\s,!\?]*|como estas[\s,!\?]*|todo bien[\s,!\?]*|hola como estas[\s,!\?]*|hola que tal[\s,!\?]*|hola todo bien[\s,!\?]*|saludos todo bien[\s,!\?]*)+$/iu';
+
+$cleanMsg = trim(preg_replace('/[¿?¡!.,;\-]/u', ' ', mb_strtolower($userMessage, 'UTF-8')));
+$cleanMsg = preg_replace('/\s+/', ' ', $cleanMsg);
+
+if (preg_match($saludosRegex, $cleanMsg) || in_array($cleanMsg, ['hola', 'buenas', 'que tal', 'como estas', 'todo bien', 'hola que tal', 'hola como estas', 'hola todo bien', 'saludos', 'saludos todo bien', 'buen dia', 'buenas tardes', 'buenas noches'])) {
+    $saludoResponse = "¡Hola! Soy el asistente de Nefetech.\n¿En qué puedo ayudarte?";
+    ChatDB::logMessage($sessionId, 'bot', $saludoResponse, 0);
+
+    echo json_encode([
+        'success' => true,
+        'greeting_intercepted' => true,
+        'messages_used' => $currentCount,
+        'remaining_messages' => $maxMessages - $currentCount,
+        'respuesta' => $saludoResponse
+    ]);
+    exit;
+}
+
+// 6. CARGAR CREDENCIALES DE GEMINI
 $apiKey = EnvLoader::get('GEMINI_API_KEY', '');
 $model = EnvLoader::get('GEMINI_MODEL', 'gemini-3.5-flash-lite');
 

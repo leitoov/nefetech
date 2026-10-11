@@ -52,3 +52,33 @@ function authenticate(): array {
 
     return $payload;
 }
+
+/**
+ * Valida la firma de integridad de la petición (anti-tampering y anti-scraping)
+ */
+function validateRequestSignature(string $rawBody): void {
+    $clientSig = $_SERVER['HTTP_X_CLIENT_SIGNATURE'] ?? '';
+    $timestamp = $_SERVER['HTTP_X_CLIENT_TIMESTAMP'] ?? '';
+
+    // Si la cabecera está presente, validar rigurosamente la firma y frescura temporal (máx 5 minutos)
+    if (!empty($clientSig)) {
+        $nowMs = (int)(microtime(true) * 1000);
+        $reqTime = (int)$timestamp;
+        
+        // Ventana de 5 minutos (300,000 ms) para prevenir ataques de repetición (replay attacks)
+        if (abs($nowMs - $reqTime) > 300000) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Petición expirada o fuera de ventana temporal.']);
+            exit;
+        }
+
+        $apiSalt = 'nefetech_api_integrity_sign_v1_2026';
+        $expectedHash = hash('sha256', "{$rawBody}|{$timestamp}|{$apiSalt}");
+
+        if (!hash_equals($expectedHash, $clientSig)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Firma de integridad de la petición inválida.']);
+            exit;
+        }
+    }
+}

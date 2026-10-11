@@ -55,30 +55,51 @@ export async function getAuthToken() {
   throw new Error('No se pudo obtener el token JWT de autenticación');
 }
 
+// Clave de firma compartida cliente-servidor para verificación de integridad de peticiones
+const API_SALT = 'nefetech_api_integrity_sign_v1_2026';
+
+/**
+ * Genera hash SHA-256 en el navegador usando SubtleCrypto
+ */
+async function generateRequestHash(dataString, timestamp) {
+  const message = `${dataString}|${timestamp}|${API_SALT}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function sendChatMessage(mensaje) {
   const token = await getAuthToken();
+  const timestamp = Date.now().toString();
+  const payloadString = JSON.stringify({ mensaje });
+  const signature = await generateRequestHash(payloadString, timestamp);
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-Client-Timestamp': timestamp,
+    'X-Client-Signature': signature,
+  };
 
   const response = await fetch('/api/chat.php', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ mensaje }),
+    headers,
+    body: payloadString,
   });
 
   if (response.status === 401) {
     cachedToken = null;
     localStorage.removeItem('nefetech_jwt_token');
     const newToken = await getAuthToken();
+    headers['Authorization'] = `Bearer ${newToken}`;
 
     const retryResponse = await fetch('/api/chat.php', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${newToken}`,
-      },
-      body: JSON.stringify({ mensaje }),
+      headers,
+      body: payloadString,
     });
     return await retryResponse.json();
   }

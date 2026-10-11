@@ -122,7 +122,7 @@ export function AIChatModal({ isOpen, onClose }) {
             </h3>
             <span className="text-[11px] text-blue-100 flex items-center gap-1.5 mt-1">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              En línea • Optimizado
+              En línea
             </span>
           </div>
         </div>

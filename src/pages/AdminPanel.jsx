@@ -11,6 +11,7 @@ export function AdminPanel() {
 
   // Pestañas principales: 'dashboard', 'leads', 'calculadora', 'configuracion'
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Modal para agrandar el chat de un lead a pantalla completa
   const [expandedChatLead, setExpandedChatLead] = useState(null);
@@ -449,7 +450,6 @@ export function AdminPanel() {
               <Icon name="lock" size={26} />
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Nefetech Admin</h1>
-            <p className="text-sm text-slate-500 mt-1">Panel de control, CRM y Calculadora de Presupuestos</p>
           </div>
 
           {loginError && (
@@ -462,14 +462,14 @@ export function AdminPanel() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Usuario o Email
+                Usuario
               </label>
               <input
                 type="text"
                 required
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
-                placeholder="lvincent o tu email"
+                placeholder="nombre de usuario"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
               />
             </div>
@@ -582,132 +582,227 @@ export function AdminPanel() {
         </div>
       )}
 
-      {/* Top Navbar */}
-      <header className="bg-slate-900 text-white px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-6">
+      {/* CONTENEDOR PRINCIPAL CON MENÚ LATERAL (SIDEBAR) */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        {/* BARRA SUPERIOR PARA MÓVILES (md:hidden) */}
+        <header className="md:hidden bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shrink-0 z-30">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white">
+            <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white text-sm shadow-md shadow-blue-500/20">
               N
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-tight leading-none">Nefetech CRM Admin</h1>
-              <span className="text-[11px] text-slate-400">Control Comercial, Cotizaciones & IA</span>
+              <span className="font-bold text-sm tracking-tight block leading-tight">Nefetech Admin</span>
+              <span className="text-[10px] text-slate-400">Panel Comercial & IA</span>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-1 bg-slate-800 p-1 rounded-xl text-xs font-bold">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+              aria-label="Abrir menú"
             >
-              <Icon name="dashboard" size={15} />
-              <span>Dashboard & Métricas</span>
+              <Icon name={isMobileMenuOpen ? "close" : "menu"} size={20} />
             </button>
+          </div>
+        </header>
+
+        {/* OVERLAY OSCURO PARA MENÚ MÓVIL */}
+        {isMobileMenuOpen && (
+          <div
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="md:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 animate-in fade-in duration-200"
+          />
+        )}
+
+        {/* SIDEBAR LATERAL (DESKTOP FIJO + MÓVIL DESLIZABLE) */}
+        <aside
+          className={`
+            fixed md:static inset-y-0 left-0 z-40 md:z-auto
+            w-64 lg:w-72 bg-slate-900 text-white flex flex-col shrink-0 border-r border-slate-800/80 shadow-2xl md:shadow-none
+            transition-transform duration-300 ease-in-out
+            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+        >
+          {/* Cabecera / Marca del Sidebar */}
+          <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-blue-500/30">
+                N
+              </div>
+              <div>
+                <h1 className="font-extrabold text-sm tracking-tight text-white leading-tight">Nefetech CRM</h1>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Panel Administrativo
+                </span>
+              </div>
+            </div>
+
             <button
-              onClick={() => setActiveTab('leads')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'leads' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              <Icon name="inbox" size={15} />
-              <span>Bandeja de Leads</span>
+              <Icon name="close" size={18} />
             </button>
+          </div>
+
+          {/* Navegación Vertical */}
+          <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
+            <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase text-slate-400">
+              Navegación Principal
+            </div>
+
             <button
-              onClick={() => setActiveTab('calculadora')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'calculadora' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'dashboard'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
               }`}
             >
-              <Icon name="calculate" size={15} />
-              <span>Calculadora & Asesoría</span>
+              <div className="flex items-center gap-3">
+                <Icon name="dashboard" size={18} className={activeTab === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Dashboard & Métricas</span>
+              </div>
+              {activeTab === 'dashboard' && (
+                <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
+              )}
             </button>
+
             <button
-              onClick={() => setActiveTab('configuracion')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'configuracion' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => { setActiveTab('leads'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'leads'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
               }`}
             >
-              <Icon name="settings" size={15} />
-              <span>Configuración de Costos</span>
+              <div className="flex items-center gap-3">
+                <Icon name="inbox" size={18} className={activeTab === 'leads' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Bandeja de Leads</span>
+              </div>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                activeTab === 'leads' ? 'bg-white text-blue-600' : 'bg-slate-800 text-slate-300'
+              }`}>
+                {leads.length}
+              </span>
             </button>
+
             <button
-              onClick={() => setActiveTab('historiales')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'historiales' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => { setActiveTab('calculadora'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'calculadora'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
               }`}
             >
-              <Icon name="history" size={15} />
-              <span>Historiales</span>
+              <div className="flex items-center gap-3">
+                <Icon name="calculate" size={18} className={activeTab === 'calculadora' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Calculadora & Asesoría</span>
+              </div>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                activeTab === 'calculadora' ? 'bg-white/20 text-white' : 'bg-indigo-900/60 text-indigo-300'
+              }`}>
+                IA
+              </span>
+            </button>
+
+            <div className="pt-3 px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase text-slate-400">
+              Gestión & Tarifarios
+            </div>
+
+            <button
+              onClick={() => { setActiveTab('configuracion'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'configuracion'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="settings" size={18} className={activeTab === 'configuracion' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Configuración de Costos</span>
+              </div>
+              {activeTab === 'configuracion' && (
+                <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('historiales'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'historiales'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="history" size={18} className={activeTab === 'historiales' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Historiales de Cotización</span>
+              </div>
+              {sentQuotations.length > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'historiales' ? 'bg-white text-blue-600' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {sentQuotations.length}
+                </span>
+              )}
             </button>
           </nav>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-2 bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-xl text-xs">
-            <span className="text-emerald-400 font-bold">USD Blue Hoy:</span>
-            <span className="text-white font-mono font-bold">${dolarRate.blue}</span>
-            <span className="text-[10px] text-slate-400">DolarApi</span>
+          {/* Widget Dólar Blue en Sidebar */}
+          <div className="p-3.5 mx-3 mb-3 bg-slate-800/70 border border-slate-700/60 rounded-2xl">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Dólar Blue Hoy
+              </span>
+              <button
+                onClick={fetchBudgetConfig}
+                title="Actualizar cotización"
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5"
+              >
+                <Icon name="sync" size={13} />
+              </button>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xl font-black font-mono text-emerald-400 leading-none">
+                ${blueRate.toLocaleString()} <span className="text-[10px] font-medium text-slate-400 font-sans">ARS</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">DolarApi</span>
+            </div>
           </div>
 
-          <div className="text-right hidden sm:block">
-            <div className="text-xs font-semibold text-white">{currentUser?.username || 'lvincent'}</div>
-            <div className="text-[10px] text-emerald-400">Admin Activo</div>
+          {/* Usuario y Cierre de Sesión en el pie del Sidebar */}
+          <div className="p-4 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="h-8 w-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-white shrink-0">
+                {(currentUser?.username || 'A')[0].toUpperCase()}
+              </div>
+              <div className="truncate">
+                <span className="text-xs font-bold text-white block truncate leading-tight">
+                  {currentUser?.username || 'lvincent'}
+                </span>
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                  ● Admin Activo
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="p-2 rounded-xl text-slate-400 hover:text-red-300 hover:bg-red-500/20 transition-all cursor-pointer shrink-0"
+            >
+              <Icon name="logout" size={18} />
+            </button>
           </div>
+        </aside>
 
-          <button
-            onClick={fetchBudgetConfig}
-            title="Refrescar cotizaciones"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-          >
-            <Icon name="sync" size={17} />
-          </button>
-
-          <button
-            onClick={handleLogout}
-            title="Cerrar sesión"
-            className="p-2 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1.5"
-          >
-            <Icon name="logout" size={16} />
-            <span className="hidden sm:inline">Salir</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Selector móvil de pestañas */}
-      <div className="md:hidden flex bg-slate-900 border-b border-slate-800 p-2 gap-1 text-xs font-bold text-white overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'dashboard' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Métricas
-        </button>
-        <button
-          onClick={() => setActiveTab('leads')}
-          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'leads' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Leads
-        </button>
-        <button
-          onClick={() => setActiveTab('calculadora')}
-          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'calculadora' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Calculadora
-        </button>
-        <button
-          onClick={() => setActiveTab('configuracion')}
-          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'configuracion' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Costos
-        </button>
-        <button
-          onClick={() => setActiveTab('historiales')}
-          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'historiales' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Historiales
-        </button>
-      </div>
+        {/* ÁREA DE CONTENIDO DE LAS PESTAÑAS (SCROLLABLE INDEPENDIENTE) */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
 
       {/* ========================================================= */}
       {/* PESTAÑA 0: DASHBOARD LIMPIO CON GRÁFICOS Y PROMEDIOS      */}
@@ -1265,7 +1360,7 @@ export function AdminPanel() {
                     ${blueRate.toLocaleString()} <span className="text-xs font-normal text-slate-300">ARS / USD</span>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-1">
-                    Actualizado: {new Date(dolarRate.actualizado).toLocaleTimeString()}
+                    Actualizado: {dolarRate?.actualizado ? new Date(dolarRate.actualizado).toLocaleTimeString() : 'En tiempo real'}
                   </div>
                 </div>
               </div>
@@ -2460,6 +2555,9 @@ export function AdminPanel() {
           </div>
         </div>
       )}
+
+        </div>
+      </div>
 
     </div>
   );

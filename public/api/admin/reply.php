@@ -118,8 +118,22 @@ if ($channel === 'email') {
 // Guardar registro de la respuesta en la base de datos
 $replyId = ChatDB::saveLeadReply($leadId, $channel, $message, $recipient, $subject);
 
+// Si se adjuntó una cotización formal, guardarla en sent_quotations
+$quotationData = $data['quotation'] ?? null;
+$quotationId = null;
+if (!empty($quotationData) && is_array($quotationData)) {
+    $quotationData['lead_id'] = $leadId;
+    $quotationData['client_recipient'] = $recipient;
+    $quotationData['client_name'] = $lead['email'] ?? ($lead['phone'] ?? 'Cliente');
+    $quotationData['channel'] = $channel;
+    $quotationData['subject'] = $subject;
+    $adminName = $adminUser['username'] ?? 'admin';
+    $quotationId = ChatDB::saveSentQuotation($quotationData, $adminName);
+}
+
 echo json_encode([
     'success' => true,
     'reply_id' => $replyId,
+    'quotation_id' => $quotationId,
     'message' => 'Respuesta registrada y despachada con éxito'
 ]);

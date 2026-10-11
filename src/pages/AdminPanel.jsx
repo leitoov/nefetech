@@ -42,7 +42,12 @@ export function AdminPanel() {
   const [dolarRate, setDolarRate] = useState({ blue: 1540, actualizado: '' });
   const [budgetConfig, setBudgetConfig] = useState(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
-  const [saveConfigMsg, setSaveConfigMsg] = useState('');
+  // Historial de cambios y cotizaciones enviadas
+  const [configHistory, setConfigHistory] = useState([]);
+  const [sentQuotations, setSentQuotations] = useState([]);
+  const [percentageIncreaseInput, setPercentageIncreaseInput] = useState(10);
+  const [isApplyingIncrease, setIsApplyingIncrease] = useState(false);
+  const [increaseSuccessMsg, setIncreaseSuccessMsg] = useState('');
 
   // Modo de la Calculadora: 'manual' o 'ia'
   const [calcMode, setCalcMode] = useState('ia');
@@ -166,6 +171,12 @@ export function AdminPanel() {
         if (data.dolar) {
           setDolarRate(data.dolar);
         }
+        if (data.history) {
+          setConfigHistory(data.history);
+        }
+        if (data.sent_quotations) {
+          setSentQuotations(data.sent_quotations);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -236,7 +247,9 @@ export function AdminPanel() {
     }
   };
 
-  // Enviar Respuesta a Lead
+  // Enviar Respuesta a Lead (y registrar cotización si está adjunta)
+  const [attachCurrentQuotation, setAttachCurrentQuotation] = useState(false);
+
   const handleSendReply = async (e) => {
     e.preventDefault();
     if (!replyMessage.trim() || !selectedLeadId) return;
@@ -245,26 +258,54 @@ export function AdminPanel() {
     setReplySuccessMsg('');
 
     try {
+      const payload = {
+        lead_id: selectedLeadId,
+        channel: replyChannel,
+        subject: replySubject,
+        message: replyMessage
+      };
+
+      if (attachCurrentQuotation) {
+        payload.quotation = {
+          hours: calcHours,
+          hourly_rate_usd: stackRatePerHourUSD,
+          stack_description: stackDescription,
+          asesoria_module: calcSelectedAsesoria,
+          asesoria_cost_usd: costAsesoriaUSD,
+          ia_module: calcSelectedIA,
+          ia_cost_usd: costIaUSD,
+          design_level: calcSelectedDesign,
+          design_cost_usd: costDesignUSD,
+          server_type: calcServerType,
+          server_months: calcServerMonths,
+          server_cost_usd: costServerUSD,
+          domain_included: calcIncludeDomain,
+          domain_cost_usd: costDomainUSD,
+          margin_percent: calcMarginPercent,
+          total_usd: totalUSD,
+          dolar_blue_rate: blueRate,
+          total_ars: totalARS,
+          full_summary: `Cotización formal: ${calcHours}h en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}, infraestructura ($${costServerUSD + costDomainUSD} USD). Total: $${totalUSD.toFixed(2)} USD / $${totalARS.toLocaleString('es-AR')} ARS (Blue $${blueRate}).`
+        };
+      }
+
       const res = await fetch('/api/admin/reply.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          lead_id: selectedLeadId,
-          channel: replyChannel,
-          subject: replySubject,
-          message: replyMessage
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (data.success) {
         setReplySuccessMsg('¡Mensaje enviado y registrado en la cadena de conversación!');
         setReplyMessage('');
+        setAttachCurrentQuotation(false);
         fetchLeadDetail(selectedLeadId);
         fetchLeads();
+        fetchBudgetConfig();
       } else {
         alert(data.error || 'Error al enviar respuesta');
       }
@@ -287,15 +328,57 @@ export function AdminPanel() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(budgetConfig)
+        body: JSON.stringify({ action: 'save', configs: budgetConfig })
       });
       const data = await res.json();
       if (data.success) {
         setSaveConfigMsg('¡Parámetros de presupuesto guardados con éxito!');
+        if (data.history) setConfigHistory(data.history);
         setTimeout(() => setSaveConfigMsg(''), 4000);
       }
     } catch {
       alert('Error al guardar configuración');
+    }
+  };
+
+  // Aplicar Aumento Porcentual Masivo a Todas las Tarifas
+  const handleApplyPercentageIncrease = async (e) => {
+    e.preventDefault();
+    const percent = Number(percentageIncreaseInput);
+    if (!percent || percent <= 0) {
+      alert('Ingresa un porcentaje de aumento mayor a 0');
+      return;
+    }
+
+    if (!window.confirm(`¿Confirmas aplicar un aumento de +${percent}% a TODAS las tarifas de lenguajes, combos, asesorías y servidores?`)) {
+      return;
+    }
+
+    setIsApplyingIncrease(true);
+    setIncreaseSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'percentage_increase', percentage: percent })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBudgetConfig(data.configs);
+        if (data.history) setConfigHistory(data.history);
+        setIncreaseSuccessMsg(`¡Aumento del +${percent}% aplicado y registrado en el historial!`);
+        setTimeout(() => setIncreaseSuccessMsg(''), 5000);
+      } else {
+        alert(data.error || 'Error al aplicar aumento');
+      }
+    } catch {
+      alert('Error de conexión al aplicar aumento');
+    } finally {
+      setIsApplyingIncrease(false);
     }
   };
 
@@ -541,6 +624,15 @@ export function AdminPanel() {
               <Icon name="settings" size={15} />
               <span>Configuración de Costos</span>
             </button>
+            <button
+              onClick={() => setActiveTab('historiales')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'historiales' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Icon name="history" size={15} />
+              <span>Historiales</span>
+            </button>
           </nav>
         </div>
 
@@ -599,7 +691,13 @@ export function AdminPanel() {
           onClick={() => setActiveTab('configuracion')}
           className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'configuracion' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
         >
-          Configuración
+          Costos
+        </button>
+        <button
+          onClick={() => setActiveTab('historiales')}
+          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'historiales' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
+        >
+          Historiales
         </button>
       </div>
 
@@ -1034,6 +1132,32 @@ export function AdminPanel() {
                         placeholder={`Hola! Te escribimos desde Nefetech para avanzar sobre tu requerimiento...`}
                         className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all leading-relaxed"
                       />
+                    </div>
+
+                    {/* Opción de Adjuntar y Registrar Cotización Formal */}
+                    <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={attachCurrentQuotation}
+                          onChange={(e) => {
+                            setAttachCurrentQuotation(e.target.checked);
+                            if (e.target.checked && !replyMessage.includes('Presupuesto Estimado:')) {
+                              const cotizText = `\n\n--- PRESUPUESTO FORMAL ESTIMADO ---\n• Desarrollo (${calcHours}h a $${stackRatePerHourUSD}/h): ${stackDescription}\n• Asesoría: ${calcSelectedAsesoria} ($${costAsesoriaUSD} USD)\n• Módulo IA: ${calcSelectedIA} ($${costIaUSD} USD)\n• Diseño UI/UX: ${calcSelectedDesign} ($${costDesignUSD} USD)\n• Servidor + Dominio: $${costServerUSD + costDomainUSD} USD\n• Total Estimado: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización dólar blue $${blueRate}).`;
+                              setReplyMessage((prev) => prev ? prev + cotizText : cotizText.trim());
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500"
+                        />
+                        <div className="text-xs">
+                          <span className="font-bold text-slate-800 block">
+                            Adjuntar y registrar cotización calculada activa (${totalUSD.toFixed(0)} USD / ${totalARS.toLocaleString('es-AR')} ARS)
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Guarda el registro histórico oficial de la cotización enviada con el valor exacto del dólar y tarifas del momento.
+                          </span>
+                        </div>
+                      </label>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -1647,6 +1771,53 @@ export function AdminPanel() {
                 </div>
               )}
 
+              {/* Herramienta de Aumento Porcentual Masivo */}
+              <div className="mb-8 p-5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                      <Icon name="trending_up" size={18} className="text-amber-600" />
+                      <span>Aplicar Aumento Porcentual Masivo</span>
+                    </div>
+                    <p className="text-xs text-amber-700/80 mt-1">
+                      Aplica un incremento general (+%) a todas las tarifas de lenguajes, combos, módulos de IA y servidores, registrando el cambio en el historial.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleApplyPercentageIncrease} className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center bg-white border border-amber-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                      <span className="text-xs font-bold text-amber-800 mr-1">+</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        step="1"
+                        value={percentageIncreaseInput}
+                        onChange={(e) => setPercentageIncreaseInput(e.target.value)}
+                        className="w-14 text-center text-xs font-black font-mono text-slate-800 focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-amber-800">%</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isApplyingIncrease}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Icon name="bolt" size={14} />
+                      <span>{isApplyingIncrease ? 'Aplicando...' : 'Aplicar Aumento'}</span>
+                    </button>
+                  </form>
+                </div>
+
+                {increaseSuccessMsg && (
+                  <div className="mt-3 p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg font-bold flex items-center gap-2">
+                    <Icon name="check_circle" size={16} className="text-emerald-700" />
+                    <span>{increaseSuccessMsg}</span>
+                  </div>
+                )}
+              </div>
+
               {isLoadingConfig || !budgetConfig ? (
                 <div className="p-8 text-center text-xs text-slate-400">Cargando configuración...</div>
               ) : (
@@ -2091,6 +2262,148 @@ export function AdminPanel() {
                     </button>
                   </div>
                 </form>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* PESTAÑA 4: HISTORIALES DE COTIZACIONES Y CAMBIOS DE PRECIOS */}
+      {/* ========================================================= */}
+      {activeTab === 'historiales' && (
+        <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto space-y-8">
+            
+            {/* 1. Historial de Cotizaciones Enviadas */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Icon name="mark_email_read" size={18} />
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900">Historial de Cotizaciones Enviadas</h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Registro inmutable de cotizaciones comerciales despachadas a clientes, conservando el valor exacto del momento (USD y cotización Blue).
+                  </p>
+                </div>
+
+                <div className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+                  {sentQuotations.length} cotizaciones registradas
+                </div>
+              </div>
+
+              {sentQuotations.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  Aún no se han despachado cotizaciones formales. Cuando respondas a un lead con la casilla "Adjuntar cotización formal", aparecerá registrada aquí automáticamente.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                        <th className="py-3 px-3">Fecha</th>
+                        <th className="py-3 px-3">Cliente / Destinatario</th>
+                        <th className="py-3 px-3">Canal</th>
+                        <th className="py-3 px-3">Stack & Alcance</th>
+                        <th className="py-3 px-3 text-right">Total USD</th>
+                        <th className="py-3 px-3 text-right">Dólar Blue</th>
+                        <th className="py-3 px-3 text-right">Total ARS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {sentQuotations.map((q) => (
+                        <tr key={q.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                            {new Date(q.created_at).toLocaleDateString()} {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-slate-800">
+                            <div>{q.client_recipient}</div>
+                            {q.lead_id && <span className="text-[10px] text-blue-600 font-normal">Lead #{q.lead_id}</span>}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              q.channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {q.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-700 max-w-xs">
+                            <div className="font-semibold text-slate-900 truncate">{q.stack_description}</div>
+                            <div className="text-[11px] text-slate-400">
+                              {q.hours}h • {q.asesoria_module || 'Sin asesoría'} • {q.ia_module || 'Sin IA'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black font-mono text-emerald-600 whitespace-nowrap">
+                            ${Number(q.total_usd).toLocaleString()} USD
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-500 whitespace-nowrap">
+                            ${Number(q.dolar_blue_rate)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black font-mono text-slate-900 whitespace-nowrap">
+                            ${Number(q.total_ars).toLocaleString('es-AR')} ARS
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Historial de Cambios de Parámetros y Tarifas */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Icon name="history" size={18} />
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900">Historial de Cambios de Costos & Aumentos</h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Auditoría de aumentos porcentuales aplicados y ediciones de precios por hora y módulos.
+                  </p>
+                </div>
+
+                <div className="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+                  {configHistory.length} modificaciones registradas
+                </div>
+              </div>
+
+              {configHistory.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  Sin registros de cambios previos.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {configHistory.map((h) => (
+                    <div key={h.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            h.action_type === 'percentage_increase' 
+                              ? 'bg-amber-100 text-amber-800' 
+                              : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {h.action_type === 'percentage_increase' ? `Aumento +${h.percentage_applied}%` : 'Edición Manual'}
+                          </span>
+                          <span className="font-bold text-slate-800">{h.description}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Modificado por: <strong className="text-slate-600">{h.created_by}</strong>
+                        </div>
+                      </div>
+
+                      <div className="text-slate-400 text-[11px] font-mono sm:text-right shrink-0">
+                        {new Date(h.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

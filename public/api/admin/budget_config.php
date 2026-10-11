@@ -54,36 +54,88 @@ function getLiveDolarRates(): array {
     return $fallback;
 }
 
-// 1. GET: Retornar configuración actual + tipo de cambio del día
+// 1. GET: Retornar configuración actual + tipo de cambio del día + historial de cambios
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $action = $_GET['action'] ?? '';
+
+    if ($action === 'history') {
+        echo json_encode([
+            'success' => true,
+            'history' => ChatDB::getConfigHistory(50)
+        ]);
+        exit;
+    }
+
+    if ($action === 'sent_quotations') {
+        echo json_encode([
+            'success' => true,
+            'quotations' => ChatDB::getSentQuotations(50)
+        ]);
+        exit;
+    }
+
     $configs = ChatDB::getBudgetConfigs();
     $dolar = getLiveDolarRates();
+    $history = ChatDB::getConfigHistory(10);
+    $sentQuotations = ChatDB::getSentQuotations(10);
 
     echo json_encode([
         'success' => true,
         'configs' => $configs,
-        'dolar' => $dolar
+        'dolar' => $dolar,
+        'history' => $history,
+        'sent_quotations' => $sentQuotations
     ]);
     exit;
 }
 
-// 2. POST: Guardar cambios en los parámetros configurables
+// 2. POST: Guardar cambios o aplicar aumentos porcentuales
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw = file_get_contents('php://input');
     $payload = json_decode($raw, true) ?: [];
 
-    if (empty($payload)) {
+    $action = $payload['action'] ?? 'save';
+
+    if ($action === 'percentage_increase') {
+        $percent = (float)($payload['percentage'] ?? 0);
+        if ($percent == 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'El porcentaje de aumento no puede ser 0']);
+            exit;
+        }
+
+        $adminName = $adminUser['username'] ?? 'admin';
+        $updatedConfigs = ChatDB::applyPercentageIncrease($percent, $adminName);
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Aumento del {$percent}% aplicado con éxito a todas las tarifas.",
+            'configs' => $updatedConfigs,
+            'history' => ChatDB::getConfigHistory(10)
+        ]);
+        exit;
+    }
+
+    $configsToSave = $payload['configs'] ?? $payload;
+    unset($configsToSave['action']);
+
+    if (empty($configsToSave)) {
         http_response_code(400);
         echo json_encode(['error' => 'Datos inválidos']);
         exit;
     }
 
-    ChatDB::saveBudgetConfigs($payload);
+    ChatDB::saveBudgetConfigs($configsToSave);
+    
+    // Registrar cambio manual en historial
+    $adminName = $adminUser['username'] ?? 'admin';
+    ChatDB::logConfigHistory('manual_update', 'Actualización manual de parámetros y tarifas', null, $configsToSave, $adminName);
 
     echo json_encode([
         'success' => true,
         'message' => 'Configuración de presupuestos actualizada correctamente.',
-        'configs' => ChatDB::getBudgetConfigs()
+        'configs' => ChatDB::getBudgetConfigs(),
+        'history' => ChatDB::getConfigHistory(10)
     ]);
     exit;
 }

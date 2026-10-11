@@ -120,6 +120,48 @@ class ChatDB {
                     config_value TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS budget_config_history (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    action_type VARCHAR(50) DEFAULT 'manual_update',
+                    description VARCHAR(255),
+                    percentage_applied DECIMAL(5,2) DEFAULT NULL,
+                    snapshot_configs LONGTEXT,
+                    created_by VARCHAR(100) DEFAULT 'admin',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS sent_quotations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    lead_id BIGINT DEFAULT NULL,
+                    client_name VARCHAR(255) DEFAULT NULL,
+                    client_recipient VARCHAR(255) NOT NULL,
+                    channel ENUM('email', 'whatsapp') DEFAULT 'email',
+                    subject VARCHAR(255) DEFAULT NULL,
+                    hours INT NOT NULL,
+                    hourly_rate_usd DECIMAL(10,2) NOT NULL,
+                    stack_description VARCHAR(255) NOT NULL,
+                    asesoria_module VARCHAR(255) DEFAULT NULL,
+                    asesoria_cost_usd DECIMAL(10,2) DEFAULT 0,
+                    ia_module VARCHAR(255) DEFAULT NULL,
+                    ia_cost_usd DECIMAL(10,2) DEFAULT 0,
+                    design_level VARCHAR(255) DEFAULT NULL,
+                    design_cost_usd DECIMAL(10,2) DEFAULT 0,
+                    server_type VARCHAR(100) DEFAULT NULL,
+                    server_months INT DEFAULT 0,
+                    server_cost_usd DECIMAL(10,2) DEFAULT 0,
+                    domain_included TINYINT(1) DEFAULT 0,
+                    domain_cost_usd DECIMAL(10,2) DEFAULT 0,
+                    margin_percent DECIMAL(5,2) DEFAULT 0,
+                    total_usd DECIMAL(10,2) NOT NULL,
+                    dolar_blue_rate DECIMAL(10,2) NOT NULL,
+                    total_ars DECIMAL(15,2) NOT NULL,
+                    full_summary TEXT,
+                    created_by VARCHAR(100) DEFAULT 'admin',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (lead_id),
+                    INDEX (client_recipient)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
     }
@@ -379,5 +421,183 @@ class ChatDB {
             $valueStr = is_array($val) ? json_encode($val) : (string)$val;
             $stmt->execute([$key, $valueStr]);
         }
+    }
+
+    /**
+     * Registra un evento en el historial de cambios de configuración
+     */
+    public static function logConfigHistory(string $actionType, string $description, ?float $percentage, array $snapshot, string $createdBy = 'admin'): void {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO budget_config_history (action_type, description, percentage_applied, snapshot_configs, created_by)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$actionType, $description, $percentage, json_encode($snapshot), $createdBy]);
+    }
+
+    /**
+     * Obtiene los últimos cambios del historial de configuración
+     */
+    public static function getConfigHistory(int $limit = 30): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT * FROM budget_config_history ORDER BY id DESC LIMIT ?");
+        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Aplica un aumento porcentual general a todas las tarifas y servicios
+     */
+    public static function applyPercentageIncrease(float $percent, string $createdBy = 'admin'): array {
+        $configs = self::getBudgetConfigs();
+        $factor = 1 + ($percent / 100);
+
+        // Tarifa por hora base
+        if (isset($configs['hourly_rate'])) {
+            $configs['hourly_rate'] = (int)round($configs['hourly_rate'] * $factor);
+        }
+
+        // Frontends
+        if (isset($configs['frontend_techs']) && is_array($configs['frontend_techs'])) {
+            foreach ($configs['frontend_techs'] as &$item) {
+                if (isset($item['price_per_hour_usd'])) {
+                    $item['price_per_hour_usd'] = (int)round($item['price_per_hour_usd'] * $factor);
+                }
+            }
+        }
+
+        // Backends
+        if (isset($configs['backend_techs']) && is_array($configs['backend_techs'])) {
+            foreach ($configs['backend_techs'] as &$item) {
+                if (isset($item['price_per_hour_usd'])) {
+                    $item['price_per_hour_usd'] = (int)round($item['price_per_hour_usd'] * $factor);
+                }
+            }
+        }
+
+        // Combos
+        if (isset($configs['stack_combos']) && is_array($configs['stack_combos'])) {
+            foreach ($configs['stack_combos'] as &$item) {
+                if (isset($item['price_per_hour_usd'])) {
+                    $item['price_per_hour_usd'] = (int)round($item['price_per_hour_usd'] * $factor);
+                }
+            }
+        }
+
+        // Módulos de IA
+        if (isset($configs['ia_modules']) && is_array($configs['ia_modules'])) {
+            foreach ($configs['ia_modules'] as &$item) {
+                if (isset($item['cost_usd']) && $item['cost_usd'] > 0) {
+                    $item['cost_usd'] = (int)round($item['cost_usd'] * $factor);
+                }
+            }
+        }
+
+        // Niveles de diseño
+        if (isset($configs['design_levels']) && is_array($configs['design_levels'])) {
+            foreach ($configs['design_levels'] as &$item) {
+                if (isset($item['cost_usd']) && $item['cost_usd'] > 0) {
+                    $item['cost_usd'] = (int)round($item['cost_usd'] * $factor);
+                }
+            }
+        }
+
+        // Asesoría / Consultoría
+        if (isset($configs['consultoria_modules']) && is_array($configs['consultoria_modules'])) {
+            foreach ($configs['consultoria_modules'] as &$item) {
+                if (isset($item['cost_usd']) && $item['cost_usd'] > 0) {
+                    $item['cost_usd'] = (int)round($item['cost_usd'] * $factor);
+                }
+            }
+        }
+
+        // Guardar configuración actualizada
+        self::saveBudgetConfigs($configs);
+
+        // Registrar en historial
+        $desc = "Aumento porcentual general del {$percent}% aplicado a todas las tarifas y servicios";
+        self::logConfigHistory('percentage_increase', $desc, $percent, $configs, $createdBy);
+
+        return $configs;
+    }
+
+    /**
+     * Guarda una cotización formalmente enviada al cliente
+     */
+    public static function saveSentQuotation(array $data, string $createdBy = 'admin'): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO sent_quotations (
+                lead_id, client_name, client_recipient, channel, subject,
+                hours, hourly_rate_usd, stack_description,
+                asesoria_module, asesoria_cost_usd,
+                ia_module, ia_cost_usd,
+                design_level, design_cost_usd,
+                server_type, server_months, server_cost_usd,
+                domain_included, domain_cost_usd,
+                margin_percent, total_usd, dolar_blue_rate, total_ars,
+                full_summary, created_by
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?
+            )
+        ");
+
+        $stmt->execute([
+            $data['lead_id'] ?? null,
+            $data['client_name'] ?? null,
+            $data['client_recipient'],
+            $data['channel'] ?? 'email',
+            $data['subject'] ?? 'Presupuesto de Proyecto',
+            (int)($data['hours'] ?? 0),
+            (float)($data['hourly_rate_usd'] ?? 0),
+            $data['stack_description'] ?? '',
+            $data['asesoria_module'] ?? null,
+            (float)($data['asesoria_cost_usd'] ?? 0),
+            $data['ia_module'] ?? null,
+            (float)($data['ia_cost_usd'] ?? 0),
+            $data['design_level'] ?? null,
+            (float)($data['design_cost_usd'] ?? 0),
+            $data['server_type'] ?? null,
+            (int)($data['server_months'] ?? 0),
+            (float)($data['server_cost_usd'] ?? 0),
+            !empty($data['domain_included']) ? 1 : 0,
+            (float)($data['domain_cost_usd'] ?? 0),
+            (float)($data['margin_percent'] ?? 0),
+            (float)($data['total_usd'] ?? 0),
+            (float)($data['dolar_blue_rate'] ?? 0),
+            (float)($data['total_ars'] ?? 0),
+            $data['full_summary'] ?? '',
+            $createdBy
+        ]);
+
+        return (int)$db->lastInsertId();
+    }
+
+    /**
+     * Obtiene el historial de cotizaciones enviadas
+     */
+    public static function getSentQuotations(int $limit = 50): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT * FROM sent_quotations ORDER BY id DESC LIMIT ?");
+        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 }

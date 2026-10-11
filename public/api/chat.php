@@ -79,33 +79,14 @@ if (!empty($earlyContacts['emails']) || !empty($earlyContacts['phones'])) {
     }
 }
 
-// CASO A: Si la sesión ya alcanzó el límite (mensaje >= 10) y el usuario está respondiendo
+// CASO A: Si la sesión ya alcanzó el límite (mensaje >= 10) y el usuario está enviando su respuesta de contacto
 if ($currentSessionCount >= $maxQuestions) {
     $contacts = LeadMailer::extractContactInfo($userMessage);
     $hasEmail = !empty($contacts['emails']);
     $hasPhone = !empty($contacts['phones']);
 
-    // Si NO contiene ni email ni número de teléfono
+    // Si NO contiene ni email ni número de teléfono, NO SE CIERRA EL CHAT
     if (!$hasEmail && !$hasPhone) {
-        $attempts = ChatDB::incrementSessionContactAttempts($sessionId);
-
-        // Si ya se le pidieron 2 veces los datos de contacto y no los pasó, SE TERMINA EL CHAT
-        if ($attempts >= 2) {
-            $endChatReply = "Has alcanzado el límite de consultas disponibles. Para coordinar una reunión o recibir atención comercial personalizada, puedes escribirnos directamente a comercial@nefetech.online o por WhatsApp al +54 9 11 7060-5129.";
-            ChatDB::logMessage($sessionId, 'bot', $endChatReply, 0);
-
-            echo json_encode([
-                'success' => true,
-                'ask_contact_info' => false,
-                'need_contact_data' => false,
-                'limit_reached' => true,
-                'remaining_messages' => 0,
-                'respuesta' => $endChatReply
-            ]);
-            exit;
-        }
-
-        // Primer intento de re-solicitud
         $noContactReply = "Para poder comunicarnos y enviarte la propuesta personalizada, por favor incluye en tu mensaje un correo electrónico (ej: tu@email.com) o un número de WhatsApp/teléfono. ¿Cómo preferís que te contactemos?";
         ChatDB::logMessage($sessionId, 'bot', $noContactReply, 0);
 
@@ -143,9 +124,8 @@ if ($currentSessionCount >= $maxQuestions) {
     exit;
 }
 
-// CASO B: Si este mensaje es exactamente el número 10, le pedimos amablemente que nos deje sus datos y necesidad (Intento 1)
+// CASO B: Si este mensaje es exactamente el número 10, le pedimos amablemente que nos deje sus datos y necesidad
 if ($currentCount >= $maxQuestions) {
-    ChatDB::incrementSessionContactAttempts($sessionId);
     $leadPrompt = "Para profundizar en tu idea y armarte una propuesta a medida, déjanos en un solo mensaje tu necesidad y datos de contacto (email o WhatsApp). Nuestro equipo comercial te responderá a la brevedad.";
     ChatDB::logMessage($sessionId, 'bot', $leadPrompt, 0);
 

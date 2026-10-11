@@ -6,7 +6,6 @@ import { Privacidad } from './pages/Privacidad';
 import { AdminPanel } from './pages/AdminPanel';
 import { MentoriaPortal } from './pages/MentoriaPortal';
 import { DemoPortal } from './pages/DemoPortal';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function App() {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
@@ -40,11 +39,7 @@ function App() {
   const isDemoRoute = currentPath.startsWith('/demo') || currentHash === '#demo';
 
   if (isSubdomainDemo || isDemoRoute) {
-    return (
-      <ErrorBoundary>
-        <DemoPortal />
-      </ErrorBoundary>
-    );
+    return <DemoPortal />;
   }
 
   // 2. Subdominio mentorias.nefetech.online o ruta /mentorias
@@ -52,11 +47,7 @@ function App() {
   const isMentoriaRoute = currentPath.startsWith('/mentorias') || currentHash === '#mentorias';
 
   if (isSubdomainMentoria || isMentoriaRoute) {
-    return (
-      <ErrorBoundary>
-        <MentoriaPortal />
-      </ErrorBoundary>
-    );
+    return <MentoriaPortal />;
   }
 
   // 2. Panel de administración: si entran por nefetech.online/admin o #admin, redirigir a admin.nefetech.online

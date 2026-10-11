@@ -80,7 +80,7 @@ export function AdminPanel() {
 
   // Parámetros calculables
   const [calcHours, setCalcHours] = useState(50);
-  const [calcHourlyRate, setCalcHourlyRate] = useState(35);
+  const [calcHourlyRate, setCalcHourlyRate] = useState(0); // Si es > 0, rige esta tarifa y los precios de lenguajes no aplican. Si es 0, rige la tarifa calculada de los lenguajes/combos.
   
   // Selección de Stack: 'combo' o 'custom' (individual)
   const [calcStackMode, setCalcStackMode] = useState('combo');
@@ -218,9 +218,6 @@ export function AdminPanel() {
       const data = await res.json();
       if (data.success) {
         setBudgetConfig(data.configs);
-        if (data.configs?.hourly_rate) {
-          setCalcHourlyRate(Number(data.configs.hourly_rate));
-        }
         if (data.dolar) {
           setDolarRate(data.dolar);
         }
@@ -929,22 +926,38 @@ export function AdminPanel() {
   };
 
   // Cálculos matemáticos de la Calculadora con soporte de Combos y Stack Individual por Precio/Hora
-  let stackRatePerHourUSD = Number(budgetConfig?.hourly_rate) || 35;
+  let stackRatePerHourUSD = 0;
   let stackDescription = '';
+  const customBaseRate = Number(calcHourlyRate) || 0;
 
   if (calcStackMode === 'combo') {
     const comboObj = budgetConfig?.stack_combos?.find(c => c.name === calcSelectedCombo);
-    stackRatePerHourUSD = comboObj ? Number(comboObj.price_per_hour_usd || (comboObj.factor ? comboObj.factor * 35 : 40)) : 40;
-    stackDescription = comboObj ? `${comboObj.name} (${comboObj.frontend} + ${comboObj.backend})` : calcSelectedCombo;
+    const comboRate = comboObj ? Number(comboObj.price_per_hour_usd || (comboObj.factor ? comboObj.factor * 35 : 40)) : 40;
+    
+    // Si se especifica Costo Base por Hora (> 0), rige esa tarifa fija y los precios de lenguajes no aplican.
+    // Si se deja en 0, se calcula la tarifa a partir de los lenguajes/combos seleccionados.
+    if (customBaseRate > 0) {
+      stackRatePerHourUSD = customBaseRate;
+      stackDescription = comboObj ? `${comboObj.name} (${comboObj.frontend} + ${comboObj.backend}) [Tarifa manual $${customBaseRate} USD/h]` : calcSelectedCombo;
+    } else {
+      stackRatePerHourUSD = comboRate;
+      stackDescription = comboObj ? `${comboObj.name} (${comboObj.frontend} + ${comboObj.backend})` : calcSelectedCombo;
+    }
   } else {
     // Modo individual / personalizado (mezclar front y back)
     const frontObj = budgetConfig?.frontend_techs?.find(f => f.name === calcSelectedFrontend);
     const backObj = budgetConfig?.backend_techs?.find(b => b.name === calcSelectedBackend);
     const frontRate = frontObj ? Number(frontObj.price_per_hour_usd || (frontObj.factor ? frontObj.factor * 35 : 38)) : 38;
     const backRate = backObj ? Number(backObj.price_per_hour_usd || (backObj.factor ? backObj.factor * 35 : 40)) : 40;
-    // Promedio de tarifa horaria combinada
-    stackRatePerHourUSD = Math.round((frontRate + backRate) / 2);
-    stackDescription = `${calcSelectedFrontend} ($${frontRate}/h) + ${calcSelectedBackend} ($${backRate}/h)`;
+    const combinedRate = Math.round((frontRate + backRate) / 2);
+
+    if (customBaseRate > 0) {
+      stackRatePerHourUSD = customBaseRate;
+      stackDescription = `${calcSelectedFrontend} + ${calcSelectedBackend} [Tarifa manual $${customBaseRate} USD/h]`;
+    } else {
+      stackRatePerHourUSD = combinedRate;
+      stackDescription = `${calcSelectedFrontend} ($${frontRate}/h) + ${calcSelectedBackend} ($${backRate}/h)`;
+    }
   }
 
   const costDevelopmentUSD = calcHours * stackRatePerHourUSD;
@@ -2039,20 +2052,43 @@ export function AdminPanel() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Costo Base por Hora:
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Costo Base por Hora:
+                      </label>
+                      {calcHourlyRate > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCalcHourlyRate(0)}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
+                        >
+                          Restablecer a $0 (usar precios del stack)
+                        </button>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3">
                       <input
                         type="number"
-                        min="5"
+                        min="0"
                         max="300"
                         value={calcHourlyRate}
-                        onChange={(e) => setCalcHourlyRate(Math.max(5, Number(e.target.value)))}
+                        onChange={(e) => setCalcHourlyRate(Math.max(0, Number(e.target.value)))}
+                        placeholder="0 para usar precios de lenguajes"
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                       <span className="text-xs font-bold text-slate-500 shrink-0">USD/h</span>
                     </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {calcHourlyRate > 0 ? (
+                        <span className="text-amber-600 font-semibold">
+                          Tarifa fija manual activa: los precios individuales de los lenguajes no aplican.
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 font-medium">
+                          En $0: la tarifa se calcula automáticamente según los lenguajes/combos seleccionados.
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
 

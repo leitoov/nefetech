@@ -94,6 +94,51 @@ class ChatDB {
                     created_by TEXT DEFAULT 'admin',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS mentoria_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    birth_date DATE NOT NULL,
+                    country TEXT NOT NULL,
+                    is_verified INTEGER DEFAULT 0,
+                    verification_token TEXT DEFAULT NULL,
+                    last_login DATETIME DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS mentoria_courses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    category TEXT DEFAULT 'Desarrollo',
+                    duration_hours INTEGER DEFAULT 20,
+                    total_modules INTEGER DEFAULT 5,
+                    is_active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS mentoria_enrollments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    course_id INTEGER NOT NULL,
+                    progress_percent INTEGER DEFAULT 0,
+                    completed_modules INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'en_progreso',
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS mentoria_password_resets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    token TEXT NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    used INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
             ");
         } else {
             // MySQL
@@ -217,6 +262,57 @@ class ChatDB {
                     INDEX (is_active),
                     INDEX (start_datetime),
                     INDEX (end_datetime)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS mentoria_users (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    first_name VARCHAR(100) NOT NULL,
+                    last_name VARCHAR(100) NOT NULL,
+                    email VARCHAR(191) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    birth_date DATE NOT NULL,
+                    country VARCHAR(100) NOT NULL,
+                    is_verified TINYINT(1) DEFAULT 0,
+                    verification_token VARCHAR(100) DEFAULT NULL,
+                    last_login DATETIME DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (email),
+                    INDEX (verification_token)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS mentoria_courses (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    category VARCHAR(100) DEFAULT 'Desarrollo',
+                    duration_hours INT DEFAULT 20,
+                    total_modules INT DEFAULT 5,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS mentoria_enrollments (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    course_id BIGINT NOT NULL,
+                    progress_percent INT DEFAULT 0,
+                    completed_modules INT DEFAULT 0,
+                    status ENUM('en_progreso', 'completado', 'pausado') DEFAULT 'en_progreso',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (user_id),
+                    INDEX (course_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS mentoria_password_resets (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(191) NOT NULL,
+                    token VARCHAR(100) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    used TINYINT(1) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (email),
+                    INDEX (token)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
@@ -861,4 +957,426 @@ PROMPT;
         $stmt = $db->prepare("DELETE FROM discount_campaigns WHERE id = ?");
         return $stmt->execute([$id]);
     }
+
+    // ==========================================
+    // MENTORIAS METHODS
+    // ==========================================
+
+    /**
+     * Registra un nuevo alumno de mentorías
+     */
+    public static function registerMentoriaUser(array $data): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        // Verificar si el email ya existe
+        $stmt = $db->prepare("SELECT id FROM mentoria_users WHERE email = ?");
+        $stmt->execute([strtolower(trim($data['email']))]);
+        if ($stmt->fetch()) {
+            throw new Exception("El correo electrónico ya se encuentra registrado.");
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $hash = password_hash($data['password'], PASSWORD_DEFAULT);
+
+        $stmt = $db->prepare("
+            INSERT INTO mentoria_users (first_name, last_name, email, password_hash, birth_date, country, is_verified, verification_token)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        ");
+        $stmt->execute([
+            trim($data['first_name']),
+            trim($data['last_name']),
+            strtolower(trim($data['email'])),
+            $hash,
+            $data['birth_date'],
+            trim($data['country']),
+            $token
+        ]);
+
+        $userId = (int)$db->lastInsertId();
+
+        // Inscribir por defecto en los cursos iniciales si no tiene ninguno
+        self::seedMentoriaDefaults();
+        self::enrollUserInAvailableCourses($userId);
+
+        return [
+            'id' => $userId,
+            'email' => strtolower(trim($data['email'])),
+            'first_name' => trim($data['first_name']),
+            'last_name' => trim($data['last_name']),
+            'verification_token' => $token
+        ];
+    }
+
+    /**
+     * Valida la cuenta del usuario mediante su token
+     */
+    public static function verifyMentoriaEmail(string $token): ?array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT id, first_name, last_name, email, is_verified FROM mentoria_users WHERE verification_token = ?");
+        $stmt->execute([$token]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            return null;
+        }
+
+        if (!$user['is_verified']) {
+            $stmtUpdate = $db->prepare("UPDATE mentoria_users SET is_verified = 1, verification_token = NULL WHERE id = ?");
+            $stmtUpdate->execute([$user['id']]);
+            $user['is_verified'] = 1;
+        }
+
+        return $user;
+    }
+
+    /**
+     * Login de alumno de mentorías
+     */
+    public static function loginMentoriaUser(string $email, string $password): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT * FROM mentoria_users WHERE email = ?");
+        $stmt->execute([strtolower(trim($email))]);
+        $user = $stmt->fetch();
+
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            throw new Exception("Credenciales incorrectas.");
+        }
+
+        // Actualizar último login
+        $stmtUpdate = $db->prepare("UPDATE mentoria_users SET last_login = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmtUpdate->execute([$user['id']]);
+
+        // Asegurar que tenga cursos iniciales asignados
+        self::enrollUserInAvailableCourses($user['id']);
+
+        unset($user['password_hash']);
+        unset($user['verification_token']);
+        return $user;
+    }
+
+    /**
+     * Cambiar contraseña de un usuario autenticado
+     */
+    public static function changeMentoriaPassword(int $userId, string $currentPassword, string $newPassword): bool {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT password_hash FROM mentoria_users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch();
+
+        if (!$user || !password_verify($currentPassword, $user['password_hash'])) {
+            throw new Exception("La contraseña actual es incorrecta.");
+        }
+
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmtUpdate = $db->prepare("UPDATE mentoria_users SET password_hash = ? WHERE id = ?");
+        return $stmtUpdate->execute([$newHash, $userId]);
+    }
+
+    /**
+     * Crear solicitud de restablecimiento de contraseña
+     */
+    public static function createMentoriaPasswordReset(string $email): ?array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT id, first_name, email FROM mentoria_users WHERE email = ?");
+        $stmt->execute([strtolower(trim($email))]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            return null;
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
+
+        // Invalidar tokens previos
+        $stmtRevoke = $db->prepare("UPDATE mentoria_password_resets SET used = 1 WHERE email = ?");
+        $stmtRevoke->execute([$user['email']]);
+
+        $stmtInsert = $db->prepare("
+            INSERT INTO mentoria_password_resets (email, token, expires_at, used)
+            VALUES (?, ?, ?, 0)
+        ");
+        $stmtInsert->execute([$user['email'], $token, $expiresAt]);
+
+        return [
+            'token' => $token,
+            'email' => $user['email'],
+            'first_name' => $user['first_name']
+        ];
+    }
+
+    /**
+     * Restablecer contraseña con token
+     */
+    public static function resetMentoriaPassword(string $token, string $newPassword): bool {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            SELECT * FROM mentoria_password_resets 
+            WHERE token = ? AND used = 0 AND expires_at >= CURRENT_TIMESTAMP
+            ORDER BY id DESC LIMIT 1
+        ");
+        $stmt->execute([$token]);
+        $reset = $stmt->fetch();
+
+        if (!$reset) {
+            throw new Exception("El enlace para restablecer la contraseña es inválido o ha expirado.");
+        }
+
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmtUpdate = $db->prepare("UPDATE mentoria_users SET password_hash = ? WHERE email = ?");
+        $stmtUpdate->execute([$newHash, $reset['email']]);
+
+        $stmtMark = $db->prepare("UPDATE mentoria_password_resets SET used = 1 WHERE id = ?");
+        $stmtMark->execute([$reset['id']]);
+
+        return true;
+    }
+
+    /**
+     * Obtiene el listado de mentorías disponibles con el progreso del alumno
+     */
+    public static function getUserMentoriaDashboard(int $userId): array {
+        $db = self::getConnection();
+        self::initTables();
+        self::seedMentoriaDefaults();
+        self::enrollUserInAvailableCourses($userId);
+
+        $stmt = $db->prepare("
+            SELECT 
+                c.id as course_id,
+                c.title,
+                c.description,
+                c.category,
+                c.duration_hours,
+                c.total_modules,
+                COALESCE(e.id, 0) as enrollment_id,
+                COALESCE(e.progress_percent, 0) as progress_percent,
+                COALESCE(e.completed_modules, 0) as completed_modules,
+                COALESCE(e.status, 'disponible') as status,
+                e.updated_at as last_activity
+            FROM mentoria_courses c
+            LEFT JOIN mentoria_enrollments e ON c.id = e.course_id AND e.user_id = ?
+            WHERE c.is_active = 1
+            ORDER BY c.id ASC
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Actualiza el progreso de un alumno en un curso
+     */
+    public static function updateEnrollmentProgress(int $userId, int $courseId, int $completedModules): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmtC = $db->prepare("SELECT total_modules FROM mentoria_courses WHERE id = ?");
+        $stmtC->execute([$courseId]);
+        $course = $stmtC->fetch();
+        if (!$course) {
+            throw new Exception("Curso no encontrado.");
+        }
+
+        $totalModules = max(1, (int)$course['total_modules']);
+        $completedModules = max(0, min($completedModules, $totalModules));
+        $progressPercent = round(($completedModules / $totalModules) * 100);
+        $status = ($progressPercent >= 100) ? 'completado' : 'en_progreso';
+
+        $stmtE = $db->prepare("SELECT id FROM mentoria_enrollments WHERE user_id = ? AND course_id = ?");
+        $stmtE->execute([$userId, $courseId]);
+        $enrollment = $stmtE->fetch();
+
+        if ($enrollment) {
+            $stmtUp = $db->prepare("
+                UPDATE mentoria_enrollments 
+                SET completed_modules = ?, progress_percent = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $stmtUp->execute([$completedModules, $progressPercent, $status, $enrollment['id']]);
+        } else {
+            $stmtIns = $db->prepare("
+                INSERT INTO mentoria_enrollments (user_id, course_id, completed_modules, progress_percent, status)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmtIns->execute([$userId, $courseId, $completedModules, $progressPercent, $status]);
+        }
+
+        return [
+            'course_id' => $courseId,
+            'completed_modules' => $completedModules,
+            'total_modules' => $totalModules,
+            'progress_percent' => $progressPercent,
+            'status' => $status
+        ];
+    }
+
+    /**
+     * Listado completo para el panel de administración
+     */
+    public static function getAdminMentoriasOverview(): array {
+        $db = self::getConnection();
+        self::initTables();
+        self::seedMentoriaDefaults();
+
+        // 1. Usuarios con su progreso consolidado
+        $stmtUsers = $db->query("
+            SELECT 
+                u.id,
+                u.first_name,
+                u.last_name,
+                u.email,
+                u.birth_date,
+                u.country,
+                u.is_verified,
+                u.last_login,
+                u.created_at,
+                COUNT(e.id) as total_enrollments,
+                COALESCE(AVG(e.progress_percent), 0) as avg_progress,
+                SUM(CASE WHEN e.status = 'completado' THEN 1 ELSE 0 END) as completed_courses
+            FROM mentoria_users u
+            LEFT JOIN mentoria_enrollments e ON u.id = e.user_id
+            GROUP BY u.id
+            ORDER BY u.created_at DESC
+        ");
+        $users = $stmtUsers->fetchAll();
+
+        // 2. Detalle de inscripciones por usuario
+        $stmtEnrollments = $db->query("
+            SELECT 
+                e.id,
+                e.user_id,
+                e.course_id,
+                c.title as course_title,
+                e.progress_percent,
+                e.completed_modules,
+                c.total_modules,
+                e.status,
+                e.updated_at
+            FROM mentoria_enrollments e
+            JOIN mentoria_courses c ON e.course_id = c.id
+            ORDER BY e.updated_at DESC
+        ");
+        $enrollments = $stmtEnrollments->fetchAll();
+
+        // 3. Catálogo de cursos
+        $stmtCourses = $db->query("
+            SELECT 
+                c.*,
+                COUNT(e.id) as enrolled_students,
+                COALESCE(AVG(e.progress_percent), 0) as avg_student_progress
+            FROM mentoria_courses c
+            LEFT JOIN mentoria_enrollments e ON c.id = e.course_id
+            GROUP BY c.id
+            ORDER BY c.id ASC
+        ");
+        $courses = $stmtCourses->fetchAll();
+
+        // Resumen métricas
+        $totalUsers = count($users);
+        $verifiedUsers = count(array_filter($users, fn($u) => (int)$u['is_verified'] === 1));
+        $activeLogins = count(array_filter($users, fn($u) => !empty($u['last_login'])));
+
+        return [
+            'stats' => [
+                'total_users' => $totalUsers,
+                'verified_users' => $verifiedUsers,
+                'unverified_users' => $totalUsers - $verifiedUsers,
+                'active_logins' => $activeLogins,
+                'total_courses' => count($courses)
+            ],
+            'users' => $users,
+            'enrollments' => $enrollments,
+            'courses' => $courses
+        ];
+    }
+
+    /**
+     * Inscribe al usuario en los cursos predeterminados si no lo está
+     */
+    private static function enrollUserInAvailableCourses(int $userId): void {
+        $db = self::getConnection();
+        $courses = $db->query("SELECT id FROM mentoria_courses WHERE is_active = 1")->fetchAll();
+
+        $stmtCheck = $db->prepare("SELECT id FROM mentoria_enrollments WHERE user_id = ? AND course_id = ?");
+        $stmtInsert = $db->prepare("
+            INSERT INTO mentoria_enrollments (user_id, course_id, progress_percent, completed_modules, status)
+            VALUES (?, ?, 0, 0, 'en_progreso')
+        ");
+
+        foreach ($courses as $c) {
+            $stmtCheck->execute([$userId, $c['id']]);
+            if (!$stmtCheck->fetch()) {
+                $stmtInsert->execute([$userId, $c['id']]);
+            }
+        }
+    }
+
+    /**
+     * Inserta cursos iniciales demostrativos de mentoría si la tabla está vacía
+     */
+    private static function seedMentoriaDefaults(): void {
+        $db = self::getConnection();
+        $count = $db->query("SELECT COUNT(*) FROM mentoria_courses")->fetchColumn();
+        if ((int)$count > 0) {
+            return;
+        }
+
+        $defaultCourses = [
+            [
+                'title' => 'Mentoría Fullstack Web (React & PHP/Node)',
+                'description' => 'Aprende arquitectura moderna de aplicaciones, bases de datos relacionales y buenas prácticas de producción.',
+                'category' => 'Desarrollo Web',
+                'duration_hours' => 36,
+                'total_modules' => 6
+            ],
+            [
+                'title' => 'Mentoría en Arquitectura Backend y APIs REST',
+                'description' => 'Diseño de endpoints escalables, autenticación JWT/OAuth, patrones de software y optimización SQL.',
+                'category' => 'Backend & Cloud',
+                'duration_hours' => 24,
+                'total_modules' => 4
+            ],
+            [
+                'title' => 'Mentoría en Inteligencia Artificial Aplicada a Negocios',
+                'description' => 'Integración de modelos LLM, RAGs, automatizaciones con agentes de código y prompts para soluciones reales.',
+                'category' => 'Inteligencia Artificial',
+                'duration_hours' => 20,
+                'total_modules' => 5
+            ],
+            [
+                'title' => 'Mentoría en DevOps, Despliegue Continuo y VPS',
+                'description' => 'Configuración de servidores Linux, Nginx/Apache, SSL/TLS, despliegues automáticos y monitoreo.',
+                'category' => 'DevOps & Infraestructura',
+                'duration_hours' => 16,
+                'total_modules' => 4
+            ]
+        ];
+
+        $stmt = $db->prepare("
+            INSERT INTO mentoria_courses (title, description, category, duration_hours, total_modules, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+        ");
+
+        foreach ($defaultCourses as $course) {
+            $stmt->execute([
+                $course['title'],
+                $course['description'],
+                $course['category'],
+                $course['duration_hours'],
+                $course['total_modules']
+            ]);
+        }
+    }
 }
+

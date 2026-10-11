@@ -4,6 +4,7 @@ import { Home } from './pages/Home';
 import { Terminos } from './pages/Terminos';
 import { Privacidad } from './pages/Privacidad';
 import { AdminPanel } from './pages/AdminPanel';
+import { MentoriaPortal } from './pages/MentoriaPortal';
 
 function App() {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
@@ -32,7 +33,15 @@ function App() {
     };
   }, []);
 
-  // Panel de administración: si entran por nefetech.online/admin o #admin, redirigir a admin.nefetech.online
+  // 1. Subdominio mentorias.nefetech.online o ruta /mentorias
+  const isSubdomainMentoria = window.location.hostname.startsWith('mentorias.');
+  const isMentoriaRoute = currentPath.startsWith('/mentorias') || currentHash === '#mentorias';
+
+  if (isSubdomainMentoria || isMentoriaRoute) {
+    return <MentoriaPortal />;
+  }
+
+  // 2. Panel de administración: si entran por nefetech.online/admin o #admin, redirigir a admin.nefetech.online
   const isSubdomainAdmin = window.location.hostname.startsWith('admin.');
   const isAdminRoute = currentPath.startsWith('/admin') || currentHash === '#admin';
 

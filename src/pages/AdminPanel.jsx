@@ -126,6 +126,14 @@ export function AdminPanel() {
   const [isSendingQuote, setIsSendingQuote] = useState(false);
   const [quoteSentSuccessMsg, setQuoteSentSuccessMsg] = useState('');
 
+  // -------------------------------------------------------------
+  // MENTORÍAS (mentorias.nefetech.online)
+  // -------------------------------------------------------------
+  const [mentoriaData, setMentoriaData] = useState({ stats: {}, users: [], enrollments: [], courses: [] });
+  const [isLoadingMentorias, setIsLoadingMentorias] = useState(false);
+  const [mentoriaSearch, setMentoriaSearch] = useState('');
+  const [mentoriaFilterVerified, setMentoriaFilterVerified] = useState('all'); // 'all', 'verified', 'unverified'
+
   // Manejo de Login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -251,10 +259,29 @@ export function AdminPanel() {
     }
   };
 
+  // Cargar métricas y listado de alumnos de mentorias
+  const fetchMentoriaOverview = async () => {
+    setIsLoadingMentorias(true);
+    try {
+      const res = await fetch('/api/admin/mentorias.php?action=overview', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setMentoriaData(data.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingMentorias(false);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchLeads();
       fetchBudgetConfig();
+      fetchMentoriaOverview();
     }
   }, [token]);
 
@@ -1376,6 +1403,31 @@ export function AdminPanel() {
                   activeTab === 'campanas' ? 'bg-white text-blue-600' : 'bg-slate-800 text-slate-300'
                 }`}>
                   {campaigns.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { 
+                setActiveTab('mentorias'); 
+                setIsMobileMenuOpen(false);
+                fetchMentoriaOverview();
+              }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'mentorias'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="school" size={18} className={activeTab === 'mentorias' ? 'text-white' : 'text-slate-400 group-hover:text-cyan-400'} />
+                <span className="text-xs">Mentorías</span>
+              </div>
+              {mentoriaData.stats?.total_users > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'mentorias' ? 'bg-white text-cyan-700' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {mentoriaData.stats.total_users}
                 </span>
               )}
             </button>
@@ -4088,6 +4140,266 @@ export function AdminPanel() {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* SECCIÓN: MENTORÍAS (mentorias.nefetech.online)             */}
+      {/* ========================================================= */}
+      {activeTab === 'mentorias' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header de la Sección */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 text-xs font-bold mb-2 border border-cyan-100">
+                <Icon name="school" size={14} /> Subdominio mentorias.nefetech.online
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                Control y Monitoreo de Mentorías
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Supervisa todos los alumnos registrados, estado de validación por correo, último login, cursos en curso y avance porcentual. Remitente oficial: <span className="font-mono text-cyan-700 font-semibold">mentoria@nefetech.online</span>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <a
+                href="https://mentorias.nefetech.online"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5"
+              >
+                Abrir Portal Alumnos <Icon name="open_in_new" size={14} />
+              </a>
+
+              <button
+                type="button"
+                onClick={fetchMentoriaOverview}
+                disabled={isLoadingMentorias}
+                className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs rounded-xl shadow-md shadow-cyan-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Icon name="refresh" size={14} className={isLoadingMentorias ? 'animate-spin' : ''} />
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          {/* Tarjetas de Métricas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400">Total Alumnos</p>
+                <p className="text-2xl font-black text-slate-900 mt-1">
+                  {mentoriaData.stats?.total_users || 0}
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Icon name="group" size={24} />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400">Cuentas Validadas</p>
+                <p className="text-2xl font-black text-emerald-600 mt-1">
+                  {mentoriaData.stats?.verified_users || 0}
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <Icon name="verified" size={24} />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400">Pendientes Validación</p>
+                <p className="text-2xl font-black text-amber-600 mt-1">
+                  {mentoriaData.stats?.unverified_users || 0}
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Icon name="pending" size={24} />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400">Alumnos con Login Activo</p>
+                <p className="text-2xl font-black text-cyan-600 mt-1">
+                  {mentoriaData.stats?.active_logins || 0}
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
+                <Icon name="login" size={24} />
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de Alumnos Registrados y Avance */}
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Listado de Alumnos Registrados</h3>
+                <p className="text-xs text-slate-400">Historial de usuarios, país, verificación, último acceso y progreso de cursos</p>
+              </div>
+
+              {/* Filtros de búsqueda */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="Buscar alumno, email, país..."
+                  value={mentoriaSearch}
+                  onChange={(e) => setMentoriaSearch(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-cyan-500 w-full sm:w-56"
+                />
+
+                <select
+                  value={mentoriaFilterVerified}
+                  onChange={(e) => setMentoriaFilterVerified(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="all">Todos</option>
+                  <option value="verified">Validados</option>
+                  <option value="unverified">Sin validar</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Listado */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-400 font-semibold bg-slate-50/50">
+                    <th className="py-3 px-4">Alumno</th>
+                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4">País & Edad</th>
+                    <th className="py-3 px-4">Validado</th>
+                    <th className="py-3 px-4">Último Login</th>
+                    <th className="py-3 px-4">Fecha Registro</th>
+                    <th className="py-3 px-4">Avance Promedio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {mentoriaData.users
+                    ?.filter((u) => {
+                      const matchesSearch = 
+                        `${u.first_name} ${u.last_name} ${u.email} ${u.country}`.toLowerCase().includes(mentoriaSearch.toLowerCase());
+                      const matchesVerified = 
+                        mentoriaFilterVerified === 'all'
+                          ? true
+                          : mentoriaFilterVerified === 'verified'
+                          ? Number(u.is_verified) === 1
+                          : Number(u.is_verified) === 0;
+                      return matchesSearch && matchesVerified;
+                    })
+                    .map((user) => {
+                      const avgProg = Math.round(Number(user.avg_progress) || 0);
+
+                      // Cursos del usuario
+                      const userCourses = mentoriaData.enrollments?.filter(e => Number(e.user_id) === Number(user.id)) || [];
+
+                      return (
+                        <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                            {user.first_name} {user.last_name}
+                            <div className="text-[10px] font-normal text-slate-400">ID #{user.id}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-600">
+                            {user.email}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-semibold text-slate-800">{user.country}</span>
+                            <div className="text-[10px] text-slate-400">Nac: {user.birth_date}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {Number(user.is_verified) === 1 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                                <Icon name="check" size={12} /> Validado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                                <Icon name="schedule" size={12} /> Pendiente
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600">
+                            {user.last_login ? (
+                              <div>
+                                <span className="font-medium text-slate-800">{user.last_login}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">Nunca ha ingresado</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500">
+                            {user.created_at}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    avgProg >= 100
+                                      ? 'bg-emerald-500'
+                                      : avgProg > 0
+                                      ? 'bg-cyan-500'
+                                      : 'bg-slate-300'
+                                  }`}
+                                  style={{ width: `${avgProg}%` }}
+                                />
+                              </div>
+                              <span className="font-bold text-slate-800 text-[11px]">{avgProg}%</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {user.completed_courses || 0} de {user.total_enrollments || 0} cursos listos
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {(!mentoriaData.users || mentoriaData.users.length === 0) && (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-slate-400 font-medium">
+                        No hay alumnos registrados en la plataforma de mentorías aún.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Catálogo de Mentorías Disponibles */}
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
+            <div>
+              <h3 className="text-base font-black text-slate-900">Catálogo de Mentorías Activas</h3>
+              <p className="text-xs text-slate-400">Planes formativos disponibles para los alumnos</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {mentoriaData.courses?.map((c) => (
+                <div key={c.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between">
+                  <div>
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-100 text-cyan-800 mb-2 inline-block">
+                      {c.category}
+                    </span>
+                    <h4 className="font-bold text-slate-900 text-xs mb-1 leading-snug">
+                      {c.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 line-clamp-3 mb-3">
+                      {c.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+                    <span>{c.duration_hours}h / {c.total_modules} módulos</span>
+                    <span className="font-bold text-cyan-700">{c.enrolled_students || 0} alumnos</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

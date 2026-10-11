@@ -2608,130 +2608,160 @@ export function AdminPanel() {
                                   </span>
                                 </div>
 
-                                {/* 1. Tarifa Base e Infraestructura */}
-                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tarifa Base</span>
-                                    <span className="text-base font-black font-mono text-emerald-600">${snapshot.hourly_rate} USD/h</span>
-                                  </div>
-                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Dominio Anual</span>
-                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.domain_annual_usd || 18} USD</span>
-                                  </div>
-                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Hosting Básico</span>
-                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_basic_monthly_usd || 15} USD/m</span>
-                                  </div>
-                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">VPS Mensual</span>
-                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_vps_monthly_usd || 35} USD/m</span>
-                                  </div>
-                                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Cloud Dedicado</span>
-                                    <span className="text-base font-black font-mono text-slate-800">${snapshot.infrastructure?.server_cloud_dedicated_monthly_usd || 90} USD/m</span>
-                                  </div>
-                                </div>
+                                {/* Función de ayuda visual para calcular y mostrar precio previo en gris y nuevo en verde */}
+                                {(() => {
+                                  const pct = h.action_type === 'percentage_increase' ? Number(h.percentage_applied || 0) : null;
+                                  
+                                  const renderPriceComparison = (newPrice, unit = 'USD/h') => {
+                                    if (pct && pct > 0 && newPrice > 0) {
+                                      const oldPrice = Math.round(newPrice / (1 + pct / 100));
+                                      return (
+                                        <div className="flex items-center gap-1.5 shrink-0 font-mono text-xs">
+                                          <span className="text-slate-400 line-through text-[11px] font-normal" title="Precio anterior">
+                                            ${oldPrice}
+                                          </span>
+                                          <span className="text-slate-300 text-[10px]">→</span>
+                                          <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60" title={`Precio con aumento +${pct}%`}>
+                                            ${newPrice} {unit}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <span className="font-mono font-bold text-emerald-600 shrink-0 text-xs">
+                                        ${newPrice} {unit}
+                                      </span>
+                                    );
+                                  };
 
-                                {/* 2. Stack Combos */}
-                                {snapshot.stack_combos && snapshot.stack_combos.length > 0 && (
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                      <Icon name="layers" size={14} className="text-indigo-600" />
-                                      <span>Combos de Stack (Precio / Hora)</span>
-                                    </h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                                      {snapshot.stack_combos.map((combo, cIdx) => (
-                                        <div key={cIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                                          <div>
-                                            <span className="font-bold text-slate-800 block truncate">{combo.name}</span>
-                                            <span className="text-[10px] text-slate-400">{combo.frontend} + {combo.backend}</span>
+                                  return (
+                                    <>
+                                      {/* 1. Tarifa Base e Infraestructura */}
+                                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tarifa Base</span>
+                                          {renderPriceComparison(snapshot.hourly_rate, 'USD/h')}
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Dominio Anual</span>
+                                          {renderPriceComparison(snapshot.infrastructure?.domain_annual_usd || 18, 'USD')}
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Hosting Básico</span>
+                                          {renderPriceComparison(snapshot.infrastructure?.server_basic_monthly_usd || 15, 'USD/m')}
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">VPS Mensual</span>
+                                          {renderPriceComparison(snapshot.infrastructure?.server_vps_monthly_usd || 35, 'USD/m')}
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Cloud Dedicado</span>
+                                          {renderPriceComparison(snapshot.infrastructure?.server_cloud_dedicated_monthly_usd || 90, 'USD/m')}
+                                        </div>
+                                      </div>
+
+                                      {/* 2. Stack Combos */}
+                                      {snapshot.stack_combos && snapshot.stack_combos.length > 0 && (
+                                        <div>
+                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Icon name="layers" size={14} className="text-indigo-600" />
+                                            <span>Combos de Stack (Precio / Hora)</span>
+                                          </h4>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                            {snapshot.stack_combos.map((combo, cIdx) => {
+                                              const newRate = combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40);
+                                              return (
+                                                <div key={cIdx} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                                                  <div className="min-w-0 pr-2">
+                                                    <span className="font-bold text-slate-800 block truncate">{combo.name}</span>
+                                                    <span className="text-[10px] text-slate-400 truncate block">{combo.frontend} + {combo.backend}</span>
+                                                  </div>
+                                                  {renderPriceComparison(newRate, 'USD/h')}
+                                                </div>
+                                              );
+                                            })}
                                           </div>
-                                          <span className="font-mono font-bold text-emerald-600 shrink-0 ml-2">
-                                            ${combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40)} USD/h
-                                          </span>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                      )}
 
-                                {/* 3. Lenguajes Individuales (Frontend y Backend) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* Frontend */}
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                      <Icon name="code" size={14} className="text-blue-600" />
-                                      <span>Tecnologías Frontend (USD / Hora)</span>
-                                    </h4>
-                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                      {snapshot.frontend_techs?.map((front, fIdx) => (
-                                        <div key={fIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                          <span className="font-medium text-slate-800">{front.name}</span>
-                                          <span className="font-mono font-bold text-emerald-600">
-                                            ${front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38)} USD/h
-                                          </span>
+                                      {/* 3. Lenguajes Individuales (Frontend y Backend) */}
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Frontend */}
+                                        <div>
+                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Icon name="code" size={14} className="text-blue-600" />
+                                            <span>Tecnologías Frontend (USD / Hora)</span>
+                                          </h4>
+                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                            {snapshot.frontend_techs?.map((front, fIdx) => {
+                                              const newRate = front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38);
+                                              return (
+                                                <div key={fIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                                  <span className="font-medium text-slate-800">{front.name}</span>
+                                                  {renderPriceComparison(newRate, 'USD/h')}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
 
-                                  {/* Backend */}
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                      <Icon name="terminal" size={14} className="text-indigo-600" />
-                                      <span>Tecnologías Backend (USD / Hora)</span>
-                                    </h4>
-                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                      {snapshot.backend_techs?.map((back, bIdx) => (
-                                        <div key={bIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                          <span className="font-medium text-slate-800">{back.name}</span>
-                                          <span className="font-mono font-bold text-emerald-600">
-                                            ${back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40)} USD/h
-                                          </span>
+                                        {/* Backend */}
+                                        <div>
+                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Icon name="terminal" size={14} className="text-indigo-600" />
+                                            <span>Tecnologías Backend (USD / Hora)</span>
+                                          </h4>
+                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                            {snapshot.backend_techs?.map((back, bIdx) => {
+                                              const newRate = back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40);
+                                              return (
+                                                <div key={bIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                                  <span className="font-medium text-slate-800">{back.name}</span>
+                                                  {renderPriceComparison(newRate, 'USD/h')}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
+                                      </div>
 
-                                {/* 4. Módulos de IA y Asesoría */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* Módulos de IA */}
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                      <Icon name="smart_toy" size={14} className="text-purple-600" />
-                                      <span>Módulos de Inteligencia Artificial (Costo Fijo)</span>
-                                    </h4>
-                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                      {snapshot.ia_modules?.map((ia, iaIdx) => (
-                                        <div key={iaIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                          <span className="font-medium text-slate-800 truncate pr-2">{ia.name}</span>
-                                          <span className="font-mono font-bold text-purple-700 shrink-0">
-                                            ${ia.cost_usd} USD
-                                          </span>
+                                      {/* 4. Módulos de IA y Asesoría */}
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Módulos de IA */}
+                                        <div>
+                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Icon name="smart_toy" size={14} className="text-purple-600" />
+                                            <span>Módulos de Inteligencia Artificial (Costo Fijo)</span>
+                                          </h4>
+                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                            {snapshot.ia_modules?.map((ia, iaIdx) => (
+                                              <div key={iaIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                                <span className="font-medium text-slate-800 truncate pr-2">{ia.name}</span>
+                                                {renderPriceComparison(ia.cost_usd, 'USD')}
+                                              </div>
+                                            ))}
+                                          </div>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
 
-                                  {/* Asesoría y Consultoría */}
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                      <Icon name="psychology" size={14} className="text-amber-600" />
-                                      <span>Módulos de Asesoría (Costo Fijo)</span>
-                                    </h4>
-                                    <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                      {snapshot.consultoria_modules?.map((c, cIdx) => (
-                                        <div key={cIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                          <span className="font-medium text-slate-800 truncate pr-2">{c.name}</span>
-                                          <span className="font-mono font-bold text-amber-700 shrink-0">
-                                            ${c.cost_usd} USD
-                                          </span>
+                                        {/* Asesoría y Consultoría */}
+                                        <div>
+                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Icon name="psychology" size={14} className="text-amber-600" />
+                                            <span>Módulos de Asesoría (Costo Fijo)</span>
+                                          </h4>
+                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                                            {snapshot.consultoria_modules?.map((c, cIdx) => (
+                                              <div key={cIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                                                <span className="font-medium text-slate-800 truncate pr-2">{c.name}</span>
+                                                {renderPriceComparison(c.cost_usd, 'USD')}
+                                              </div>
+                                            ))}
+                                          </div>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
 
                               </>
                             )}

@@ -74,17 +74,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    if ($action === 'prompts') {
+        echo json_encode([
+            'success' => true,
+            'prompts' => ChatDB::getAllPrompts(),
+            'active_prompt' => ChatDB::getActivePrompt()
+        ]);
+        exit;
+    }
+
     $configs = ChatDB::getBudgetConfigs();
     $dolar = getLiveDolarRates();
     $history = ChatDB::getConfigHistory(10);
     $sentQuotations = ChatDB::getSentQuotations(10);
+    $prompts = ChatDB::getAllPrompts();
 
     echo json_encode([
         'success' => true,
         'configs' => $configs,
         'dolar' => $dolar,
         'history' => $history,
-        'sent_quotations' => $sentQuotations
+        'sent_quotations' => $sentQuotations,
+        'prompts' => $prompts,
+        'active_prompt' => ChatDB::getActivePrompt()
     ]);
     exit;
 }
@@ -95,6 +107,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $payload = json_decode($raw, true) ?: [];
 
     $action = $payload['action'] ?? 'save';
+
+    if ($action === 'create_prompt') {
+        $versionName = trim($payload['version_name'] ?? '');
+        $promptText = trim($payload['prompt_text'] ?? '');
+        $activateImmediately = !empty($payload['activate_immediately']);
+
+        if (empty($versionName) || empty($promptText)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Nombre de versión y contenido del prompt son obligatorios.']);
+            exit;
+        }
+
+        $adminName = $adminUser['username'] ?? 'admin';
+        $newPrompt = ChatDB::createPrompt($versionName, $promptText, $activateImmediately, $adminName);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Nueva versión de prompt guardada con éxito.',
+            'prompt' => $newPrompt,
+            'prompts' => ChatDB::getAllPrompts()
+        ]);
+        exit;
+    }
+
+    if ($action === 'activate_prompt') {
+        $promptId = (int)($payload['prompt_id'] ?? 0);
+        if ($promptId <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID de prompt inválido.']);
+            exit;
+        }
+
+        $ok = ChatDB::activatePrompt($promptId);
+        if (!$ok) {
+            http_response_code(404);
+            echo json_encode(['error' => 'No se encontró el prompt especificado.']);
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Versión de prompt activada correctamente.',
+            'prompts' => ChatDB::getAllPrompts(),
+            'active_prompt' => ChatDB::getActivePrompt()
+        ]);
+        exit;
+    }
 
     if ($action === 'percentage_increase') {
         $percent = (float)($payload['percentage'] ?? 0);

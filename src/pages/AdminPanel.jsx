@@ -53,6 +53,25 @@ export function AdminPanel() {
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
   const [activeHistorySubTab, setActiveHistorySubTab] = useState({});
 
+  // -------------------------------------------------------------
+  // ASISTENTE IA & PROMPTS VERSIONADOS & LÍMITES DE MENSAJES
+  // -------------------------------------------------------------
+  const [chatPrompts, setChatPrompts] = useState([]);
+  const [activePromptText, setActivePromptText] = useState('');
+  const [selectedPromptId, setSelectedPromptId] = useState(null);
+  const [chatMaxMessagesInput, setChatMaxMessagesInput] = useState(10);
+  const [isSavingChatLimit, setIsSavingChatLimit] = useState(false);
+  const [chatLimitSuccessMsg, setChatLimitSuccessMsg] = useState('');
+
+  // Creación de nueva versión de Prompt (Inmutable)
+  const [showNewPromptModal, setShowNewPromptModal] = useState(false);
+  const [newPromptVersionName, setNewPromptVersionName] = useState('');
+  const [newPromptText, setNewPromptText] = useState('');
+  const [newPromptActivateNow, setNewPromptActivateNow] = useState(false);
+  const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [promptSuccessMsg, setPromptSuccessMsg] = useState('');
+  const [isActivatingPrompt, setIsActivatingPrompt] = useState(false);
+
   // Modo de la Calculadora: 'manual' o 'ia'
   const [calcMode, setCalcMode] = useState('ia');
   const [aiPrompt, setAiPrompt] = useState('');
@@ -181,6 +200,19 @@ export function AdminPanel() {
         }
         if (data.sent_quotations) {
           setSentQuotations(data.sent_quotations);
+        }
+        if (data.prompts) {
+          setChatPrompts(data.prompts);
+          const active = data.prompts.find(p => Number(p.is_active) === 1) || data.prompts[0];
+          if (active) {
+            setSelectedPromptId(active.id);
+          }
+        }
+        if (data.active_prompt) {
+          setActivePromptText(data.active_prompt);
+        }
+        if (data.configs?.chat_max_messages) {
+          setChatMaxMessagesInput(Number(data.configs.chat_max_messages));
         }
       }
     } catch (e) {
@@ -387,6 +419,137 @@ export function AdminPanel() {
       alert('Error de conexión al aplicar aumento');
     } finally {
       setIsApplyingIncrease(false);
+    }
+  };
+
+  // Guardar Límite de Mensajes del Chat del Front
+  const handleSaveMaxMessages = async (e) => {
+    e.preventDefault();
+    const limitNum = parseInt(chatMaxMessagesInput, 10);
+    if (isNaN(limitNum) || limitNum < 1) {
+      alert('Por favor ingresa un número válido mayor a 0 para el límite de mensajes');
+      return;
+    }
+
+    setIsSavingChatLimit(true);
+    setChatLimitSuccessMsg('');
+
+    try {
+      const updatedConfig = { ...(budgetConfig || {}), chat_max_messages: limitNum };
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'save', configs: updatedConfig })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBudgetConfig(updatedConfig);
+        setChatLimitSuccessMsg(`¡Límite de mensajes actualizado a ${limitNum} con éxito!`);
+        setTimeout(() => setChatLimitSuccessMsg(''), 4000);
+      } else {
+        alert(data.error || 'No se pudo actualizar el límite de mensajes');
+      }
+    } catch {
+      alert('Error de conexión al actualizar límite');
+    } finally {
+      setIsSavingChatLimit(false);
+    }
+  };
+
+  // Crear Nueva Versión de Prompt (Inmutable)
+  const handleCreatePrompt = async (e) => {
+    e.preventDefault();
+    if (!newPromptVersionName.trim() || !newPromptText.trim()) {
+      alert('Por favor completa el nombre de la versión y el contenido del prompt.');
+      return;
+    }
+
+    setIsCreatingPrompt(true);
+    setPromptSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'create_prompt',
+          version_name: newPromptVersionName.trim(),
+          prompt_text: newPromptText.trim(),
+          activate_immediately: newPromptActivateNow
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setChatPrompts(data.prompts || []);
+        if (data.prompt) {
+          setSelectedPromptId(data.prompt.id);
+          if (newPromptActivateNow) {
+            setActivePromptText(data.prompt.prompt_text);
+          }
+        }
+        setShowNewPromptModal(false);
+        setNewPromptVersionName('');
+        setNewPromptText('');
+        setNewPromptActivateNow(false);
+        setPromptSuccessMsg('¡Nueva versión de Prompt guardada exitosamente en el historial inmutable!');
+        setTimeout(() => setPromptSuccessMsg(''), 5000);
+      } else {
+        alert(data.error || 'Error al guardar la nueva versión de prompt');
+      }
+    } catch {
+      alert('Error de conexión al guardar la nueva versión');
+    } finally {
+      setIsCreatingPrompt(false);
+    }
+  };
+
+  // Switchear / Activar Versión de Prompt
+  const handleActivatePrompt = async (promptId) => {
+    if (!promptId || isActivatingPrompt) return;
+    const targetPrompt = chatPrompts.find(p => p.id === promptId);
+    if (!targetPrompt) return;
+
+    if (!window.confirm(`¿Deseas activar "${targetPrompt.version_name}" como el Prompt de IA oficial en producción?`)) {
+      return;
+    }
+
+    setIsActivatingPrompt(true);
+    setPromptSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'activate_prompt',
+          prompt_id: promptId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setChatPrompts(data.prompts || []);
+        if (data.active_prompt) {
+          setActivePromptText(data.active_prompt);
+        }
+        setSelectedPromptId(promptId);
+        setPromptSuccessMsg(`¡Versión "${targetPrompt.version_name}" activada con éxito en el Chat de Producción!`);
+        setTimeout(() => setPromptSuccessMsg(''), 5000);
+      } else {
+        alert(data.error || 'Error al activar versión de prompt');
+      }
+    } catch {
+      alert('Error de conexión al activar versión');
+    } finally {
+      setIsActivatingPrompt(false);
     }
   };
 
@@ -752,6 +915,24 @@ export function AdminPanel() {
                   {sentQuotations.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => { setActiveTab('prompts'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'prompts'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="psychology" size={18} className={activeTab === 'prompts' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">IA Chat & Prompts</span>
+              </div>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                activeTab === 'prompts' ? 'bg-white text-blue-600' : 'bg-slate-800 text-slate-300'
+              }`}>
+                {chatPrompts.length || 1}
+              </span>
             </button>
           </nav>
 
@@ -2820,6 +3001,375 @@ export function AdminPanel() {
                 </div>
               )}
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* PESTAÑA 5: ASISTENTE IA, PROMPTS VERSIONADOS & LÍMITES   */}
+      {/* ========================================================= */}
+      {activeTab === 'prompts' && (
+        <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto space-y-6">
+
+            {/* Encabezado Principal */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                  Motor de Inteligencia Comercial
+                </span>
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-2">
+                  Asistente IA, Prompts Inmutables & Límite de Chat
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                  Configura la cantidad máxima de preguntas que el usuario puede realizar en el chat del front y gestiona las versiones inmutables del System Prompt de Gemini. Cada versión queda resguardada y nunca se sobreescribe ni elimina.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const active = chatPrompts.find(p => Number(p.is_active) === 1) || chatPrompts[0];
+                  setNewPromptText(active ? active.prompt_text : activePromptText);
+                  setNewPromptVersionName(`v${(chatPrompts.length + 1)}.0 - Nueva Versión`);
+                  setNewPromptActivateNow(false);
+                  setShowNewPromptModal(true);
+                }}
+                className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-2 self-start md:self-auto shrink-0"
+              >
+                <span>+ Crear Nueva Versión de Prompt</span>
+              </button>
+            </div>
+
+            {/* Mensajes de notificación */}
+            {promptSuccessMsg && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold animate-in fade-in">
+                {promptSuccessMsg}
+              </div>
+            )}
+
+            {/* SECCIÓN 1: CONTROL DE LÍMITE DE MENSAJES DEL CHAT DEL FRONT */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Límite de Mensajes del Chat Web (Front)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Número máximo de preguntas libres que un visitante puede enviar al bot antes de solicitar obligatoriamente sus datos de contacto (WhatsApp o Correo).
+                  </p>
+                </div>
+                <span className="text-xs font-extrabold px-3 py-1 bg-slate-100 text-slate-700 rounded-xl max-w-fit">
+                  Límite Actual: {budgetConfig?.chat_max_messages || 10} mensajes
+                </span>
+              </div>
+
+              <form onSubmit={handleSaveMaxMessages} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Preguntas permitidas por sesión de usuario:
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={chatMaxMessagesInput}
+                        onChange={(e) => setChatMaxMessagesInput(e.target.value)}
+                        className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                        required
+                      />
+                      <span className="text-xs text-slate-500 font-medium">
+                        mensajes libres antes de bloquear y solicitar lead
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Al llegar a este límite, el bot invita al cliente a dejar sus datos y su necesidad en un único mensaje final para ser derivado al equipo de ventas.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isSavingChatLimit}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingChatLimit ? 'Guardando...' : 'Actualizar Límite'}
+                    </button>
+                  </div>
+                </div>
+
+                {chatLimitSuccessMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                    {chatLimitSuccessMsg}
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* SECCIÓN 2: GESTIÓN DE PROMPTS VERSIONADOS (INMUTABLES) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Columna Izquierda: Historial de Versiones */}
+              <div className="lg:col-span-1 bg-white rounded-3xl p-6 shadow-xs border border-slate-200 flex flex-col h-[650px]">
+                <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                      Versiones Guardadas
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Historial inmutable ({chatPrompts.length} disponibles)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {chatPrompts.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs">
+                      No hay prompts registrados.
+                    </div>
+                  ) : (
+                    chatPrompts.map((p) => {
+                      const isActive = Number(p.is_active) === 1;
+                      const isSelected = selectedPromptId === p.id;
+
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => setSelectedPromptId(p.id)}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/40 shadow-xs'
+                              : 'border-slate-200/90 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="font-extrabold text-xs text-slate-900 truncate">
+                              {p.version_name}
+                            </span>
+                            {isActive ? (
+                              <span className="shrink-0 text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
+                                Activo
+                              </span>
+                            ) : (
+                              <span className="shrink-0 text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                Inactivo
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span>Fecha:</span>
+                              <span className="font-semibold text-slate-700">{p.created_at || 'Inicial'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Creado por:</span>
+                              <span className="font-semibold text-slate-700">{p.created_by || 'admin'}</span>
+                            </div>
+                          </div>
+
+                          {/* Botón de activación si está inactivo */}
+                          {!isActive && (
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActivatePrompt(p.id);
+                                }}
+                                disabled={isActivatingPrompt}
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                              >
+                                {isActivatingPrompt ? 'Activando...' : 'Activar esta versión'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Columna Derecha: Visor de Prompt Seleccionado */}
+              <div className="lg:col-span-2 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 flex flex-col h-[650px]">
+                {(() => {
+                  const currentPrompt = chatPrompts.find(p => p.id === selectedPromptId) || chatPrompts[0];
+                  if (!currentPrompt) {
+                    return (
+                      <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+                        Selecciona una versión del historial para previsualizar su contenido.
+                      </div>
+                    );
+                  }
+
+                  const isActive = Number(currentPrompt.is_active) === 1;
+
+                  return (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-extrabold text-slate-900">
+                              {currentPrompt.version_name}
+                            </h3>
+                            {isActive ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                Versión en Producción
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                Versión Histórica
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Registrado por {currentPrompt.created_by || 'admin'} • {currentPrompt.created_at || 'Inicial'} • Inmutable
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewPromptText(currentPrompt.prompt_text);
+                              setNewPromptVersionName(`v${(chatPrompts.length + 1)}.0 - Basado en ${currentPrompt.version_name}`);
+                              setNewPromptActivateNow(false);
+                              setShowNewPromptModal(true);
+                            }}
+                            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                          >
+                            <span>Duplicar como Nueva Versión</span>
+                          </button>
+
+                          {!isActive && (
+                            <button
+                              type="button"
+                              onClick={() => handleActivatePrompt(currentPrompt.id)}
+                              disabled={isActivatingPrompt}
+                              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              {isActivatingPrompt ? 'Activando...' : 'Switchear / Activar'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 block">
+                          Contenido de Instrucciones del Sistema (Solo Lectura):
+                        </label>
+                        <div className="flex-1 p-4 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800 select-text">
+                          {currentPrompt.prompt_text}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Estado: Los prompts no pueden ser editados ni eliminados para garantizar trazabilidad.</span>
+                        <span>{currentPrompt.prompt_text?.length || 0} caracteres</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: CREAR NUEVA VERSIÓN DE PROMPT (INMUTABLE)         */}
+      {/* ========================================================= */}
+      {showNewPromptModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div>
+                <h3 className="font-extrabold text-base text-white">
+                  Crear Nueva Versión de System Prompt
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Las versiones son permanentes e inmutables. Se creará una nueva entrada en el historial sin sobreescribir la actual.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewPromptModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePrompt} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Nombre descriptivo de la versión:
+                </label>
+                <input
+                  type="text"
+                  value={newPromptVersionName}
+                  onChange={(e) => setNewPromptVersionName(e.target.value)}
+                  placeholder="Ej: v2.0 - Énfasis en leads de Inteligencia Artificial"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Contenido del System Prompt:
+                </label>
+                <textarea
+                  rows="14"
+                  value={newPromptText}
+                  onChange={(e) => setNewPromptText(e.target.value)}
+                  placeholder="Ingresa el prompt de instrucciones para el asistente..."
+                  className="w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl border border-slate-800 focus:outline-none focus:border-blue-500 leading-relaxed"
+                  required
+                ></textarea>
+                <span className="text-[11px] text-slate-400 block mt-1">
+                  {newPromptText.length} caracteres
+                </span>
+              </div>
+
+              <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="activatePromptNow"
+                  checked={newPromptActivateNow}
+                  onChange={(e) => setNewPromptActivateNow(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="activatePromptNow" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+                  Activar esta versión inmediatamente en el Chat de Producción
+                </label>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowNewPromptModal(false)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingPrompt}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isCreatingPrompt ? 'Guardando...' : 'Guardar Versión Inmutable'}
+                </button>
+              </div>
+            </form>
 
           </div>
         </div>

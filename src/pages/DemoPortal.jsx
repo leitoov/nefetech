@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Icon } from '../components/common/Icon';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+// Configurar el worker de PDF.js usando CDN seguro para empaquetado sin conflictos
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+// Límite máximo de peso para el archivo PDF: 10 Megabytes
+const MAX_PDF_SIZE_MB = 10;
+const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
+// Límite máximo de preguntas por documento
+const MAX_QUESTIONS_ALLOWED = 5;
 
 // Catálogo simulado de stock en memoria para la Demo 2
 const HARDCODED_INVENTORY = [
@@ -77,7 +87,7 @@ const HARDCODED_INVENTORY = [
   }
 ];
 
-// Documento demo precargado para el lector de PDF
+// Documento demo inicial precargado
 const DEFAULT_PDF_TEXT = `CONTRATO Y ESPECIFICACIÓN DE SERVICIOS TECNOLÓGICOS - NEFETECH
 FECHA DE EMISIÓN: 10 de Octubre de 2026
 CLIENTE: Corporación Andina de Innovación S.A.
@@ -96,23 +106,32 @@ Se realizarán copias de seguridad incrementales cada 4 horas y snapshots comple
 El costo de desarrollo se dividirá en 3 hitos: Hito 1 (30% al inicio y aprobación del diseño UI/UX), Hito 2 (40% al completar las APIs y autenticación), y Hito 3 (30% final tras 15 días de pruebas en entorno de homologación y despliegue a producción). Las garantías de corrección de bugs sin costo adicional aplican durante 180 días posteriores a la entrega final.`;
 
 export function DemoPortal() {
-  const [selectedDemo, setSelectedDemo] = useState(null); // null = ver selector de bloques; 'pdf' | 'stock'
+  const [selectedDemo, setSelectedDemo] = useState(null); // null = bloques; 'pdf' | 'stock'
 
   // -------------------------------------------------------------
-  // ESTADOS DEMO 1: LECTOR DE PDF / RAG VECTORIAL
+  // ESTADOS DEMO 1: LECTOR DE PDF / CARGA REAL & RAG VECTORIAL
   // -------------------------------------------------------------
   const [pdfFileName, setPdfFileName] = useState('Contrato_Servicios_Nefetech.pdf');
+  const [pdfFileSize, setPdfFileSize] = useState('240 KB');
+  const [pdfPageCount, setPdfPageCount] = useState(1);
   const [pdfText, setPdfText] = useState(DEFAULT_PDF_TEXT);
   const [vectorIndex, setVectorIndex] = useState(null);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
   const [indexingMsg, setIndexingMsg] = useState('');
+  const [pdfUploadError, setPdfUploadError] = useState('');
+
+  // Contador de preguntas (máximo 5)
+  const [questionsUsed, setQuestionsUsed] = useState(0);
+
+  const fileInputRef = useRef(null);
   
   const [pdfQuestion, setPdfQuestion] = useState('');
   const [isAskingPdf, setIsAskingPdf] = useState(false);
   const [pdfConversation, setPdfConversation] = useState([
     {
       sender: 'bot',
-      text: '¡Hola! He cargado el documento inicial. Puedes preguntarme sobre el SLA de backups, los hitos de entrega o la arquitectura de seguridad, o subir tu propio texto/PDF para indexarlo.'
+      text: '¡Hola! He cargado el documento inicial. Puedes hacer hasta 5 preguntas fundamentadas sobre este PDF, o hacer clic en "Subir tu propio PDF" para analizar cualquier documento de tu empresa (máximo 10 MB).'
     }
   ]);
 
@@ -129,40 +148,127 @@ export function DemoPortal() {
     }
   ]);
 
-  // Indexar el PDF cargado
-  const handleIndexPdf = async () => {
-    setIsIndexing(true);
+  // Manejo de Carga de Archivo PDF
+  const handlePdfFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPdfUploadError('');
     setIndexingMsg('');
+
+    // 1. Validar Tipo de Archivo
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setPdfUploadError('Por favor selecciona un archivo en formato PDF (.pdf).');
+      return;
+    }
+
+    // 2. Validar Peso Máximo (10 MB)
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      setPdfUploadError(`El archivo pesa ${sizeMb} MB. El límite máximo permitido es de ${MAX_PDF_SIZE_MB} MB.`);
+      return;
+    }
+
+    const formattedSize = file.size > 1024 * 1024 
+      ? (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+      : Math.round(file.size / 1024) + ' KB';
+
+    setIsParsingPdf(true);
+    setPdfFileName(file.name);
+    setPdfFileSize(formattedSize);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdfDoc = await loadingTask.promise;
+
+      setPdfPageCount(pdfDoc.numPages);
+      let extractedFullText = '';
+
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageStrings = textContent.items.map((item) => item.str);
+        const pageText = pageStrings.join(' ');
+        extractedFullText += `--- PÁGINA ${pageNum} ---\n${pageText}\n\n`;
+      }
+
+      if (!extractedFullText.trim()) {
+        setPdfUploadError('No se pudo extraer texto seleccionable del PDF (puede ser un PDF escaneado sólo como imagen).');
+        setIsParsingPdf(false);
+        return;
+      }
+
+      setPdfText(extractedFullText.trim());
+
+      // Reiniciar contador de preguntas y conversación para el nuevo documento
+      setQuestionsUsed(0);
+      setVectorIndex(null);
+      setPdfConversation([
+        {
+          sender: 'bot',
+          text: `Se ha cargado con éxito "${file.name}" (${pdfDoc.numPages} páginas, ${formattedSize}). La IA lo está indexando vectorialmente. Tienes 5 preguntas disponibles para este documento.`
+        }
+      ]);
+
+      // Indexar automáticamente el nuevo documento
+      await executeIndexDocument(file.name, extractedFullText.trim());
+
+    } catch (err) {
+      console.error(err);
+      setPdfUploadError('Ocurrió un error al procesar el archivo PDF. Intenta con otro documento.');
+    } finally {
+      setIsParsingPdf(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Función auxiliar de indexación vectorial
+  const executeIndexDocument = async (name, text) => {
+    setIsIndexing(true);
     try {
       const res = await fetch('/api/demo/rag.php?action=index', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: pdfFileName,
-          text: pdfText
-        })
+        body: JSON.stringify({ name, text })
       });
       const data = await res.json();
       if (data.success) {
         setVectorIndex(data.document);
-        setIndexingMsg(`¡Indexado! Se crearon ${data.document.total_chunks} fragmentos vectoriales listos para consulta.`);
+        setIndexingMsg(`¡Indexación vectorial completada! (${data.document.total_chunks} fragmentos RAG calculados).`);
       } else {
-        setIndexingMsg('Error: ' + (data.error || 'No se pudo indexar'));
+        setIndexingMsg('Error: ' + (data.error || 'No se pudo indexar.'));
       }
     } catch (e) {
-      setIndexingMsg('Error de conexión al indexar.');
+      setIndexingMsg('Error de conexión con el motor vectorial.');
     } finally {
       setIsIndexing(false);
     }
   };
 
-  // Preguntar al PDF
+  // Botón manual de Re-indexar
+  const handleIndexPdf = async () => {
+    setIndexingMsg('');
+    await executeIndexDocument(pdfFileName, pdfText);
+  };
+
+  // Preguntar al PDF con control de límite de 5 preguntas
   const handleAskPdf = async (e) => {
     e.preventDefault();
     if (!pdfQuestion.trim()) return;
 
+    if (questionsUsed >= MAX_QUESTIONS_ALLOWED) {
+      alert(`Has alcanzado el límite de ${MAX_QUESTIONS_ALLOWED} preguntas para este PDF. Puedes cargar otro archivo PDF para iniciar un nuevo análisis.`);
+      return;
+    }
+
     const q = pdfQuestion.trim();
     setPdfQuestion('');
+    const newQuestionsCount = questionsUsed + 1;
+    setQuestionsUsed(newQuestionsCount);
+
     setPdfConversation(prev => [...prev, { sender: 'user', text: q }]);
     setIsAskingPdf(true);
 
@@ -270,6 +376,15 @@ export function DemoPortal() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500 selection:text-white flex flex-col justify-between">
+      {/* Input oculto de subida de PDF */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="application/pdf"
+        onChange={handlePdfFileUpload}
+        className="hidden"
+      />
+
       {/* Top Header */}
       <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -337,18 +452,18 @@ export function DemoPortal() {
                     <Icon name="picture_as_pdf" size={32} />
                   </div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400 mb-2 block">
-                    Demo 1 • IA Vectorial RAG
+                    Demo 1 • Cargar PDF & IA Vectorial RAG
                   </span>
                   <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-blue-300 transition-colors">
                     Leer PDF & Preguntas a la IA
                   </h3>
                   <p className="text-sm text-slate-400 leading-relaxed mb-6">
-                    Carga un archivo o documento, la Inteligencia Artificial lo indexa vectorialmente (embeddings) y luego puedes hacerle cualquier pregunta técnica o comercial con respuestas fundamentadas en el contenido exacto.
+                    Sube tu propio archivo PDF (hasta 10 MB). La IA lo indexa con embeddings vectoriales en segundos y te permite hacer hasta 5 preguntas fundamentadas con respuestas extraídas del documento.
                   </p>
                 </div>
 
                 <div className="pt-6 border-t border-slate-800 flex items-center justify-between text-xs font-semibold text-blue-400 group-hover:text-white">
-                  <span>Probar Demo en Vivo</span>
+                  <span>Cargar PDF y Probar</span>
                   <div className="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
                     <Icon name="arrow_forward" size={16} />
                   </div>
@@ -386,59 +501,106 @@ export function DemoPortal() {
           </div>
         )}
 
-        {/* 2. DEMO 1: LEER PDF & CONSULTAS VECTORIALES (RAG) */}
+        {/* 2. DEMO 1: LEER PDF REAL & CONSULTAS VECTORIALES (RAG) */}
         {selectedDemo === 'pdf' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Header de la Demo */}
             <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20 mb-2 inline-block">
-                  Demo 1 • Búsqueda Vectorial Semántica
-                </span>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20 inline-block">
+                    Demo 1 • Búsqueda Vectorial RAG
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold border border-slate-700">
+                    Máx: {MAX_PDF_SIZE_MB} MB
+                  </span>
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                    questionsUsed >= MAX_QUESTIONS_ALLOWED 
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  }`}>
+                    Preguntas: {questionsUsed} de {MAX_QUESTIONS_ALLOWED}
+                  </span>
+                </div>
                 <h2 className="text-2xl font-black text-white tracking-tight">
-                  Lector de Documentos & Preguntas a la IA
+                  Cargar Documento PDF & Consultas Inteligentes
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-xl">
-                  La IA procesa el documento, lo divide en fragmentos semánticos, calcula sus vectores y recupera el contexto exacto al momento de consultar.
+                  Sube tu archivo PDF. La IA extrae el texto, genera embeddings vectoriales y te responde hasta {MAX_QUESTIONS_ALLOWED} consultas basadas estrictamente en su contenido.
                 </p>
               </div>
 
+              {/* Botón de Carga de PDF */}
               <div className="flex items-center gap-3">
                 <button
-                  onClick={handleIndexPdf}
-                  disabled={isIndexing}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isParsingPdf || isIndexing}
+                  className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <Icon name="memory" size={16} className={isIndexing ? 'animate-spin' : ''} />
-                  {isIndexing ? 'Indexando Vectores...' : 'Re-indexar Documento'}
+                  <Icon name={isParsingPdf ? 'hourglass_top' : 'upload_file'} size={18} className={isParsingPdf ? 'animate-spin' : ''} />
+                  {isParsingPdf ? 'Leyendo PDF...' : 'Subir Archivo PDF'}
+                </button>
+
+                <button
+                  onClick={handleIndexPdf}
+                  disabled={isIndexing || isParsingPdf}
+                  className="px-3.5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Re-indexar vectores del documento actual"
+                >
+                  <Icon name="refresh" size={16} className={isIndexing ? 'animate-spin' : ''} />
+                  <span className="hidden sm:inline">Re-indexar</span>
                 </button>
               </div>
             </div>
+
+            {/* Mensaje de Error en Subida */}
+            {pdfUploadError && (
+              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-3">
+                <Icon name="error" size={20} className="text-rose-400 shrink-0" />
+                <span>{pdfUploadError}</span>
+              </div>
+            )}
 
             {/* Layout dos columnas: Documento a la izquierda, Chat IA a la derecha */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Columna Izquierda: Documento cargado */}
               <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2 text-sm font-bold text-white">
-                      <Icon name="description" size={18} className="text-blue-400" />
-                      <span>{pdfFileName}</span>
+                  {/* Tarjeta de Información del Archivo Cargado */}
+                  <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center">
+                        <Icon name="picture_as_pdf" size={22} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white truncate max-w-[200px] sm:max-w-[280px]">
+                          {pdfFileName}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {pdfFileSize} • {pdfPageCount} {pdfPageCount === 1 ? 'página' : 'páginas'} • {pdfText.length} caracteres
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {pdfText.length} caracteres
-                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      Cambiar PDF
+                    </button>
                   </div>
 
                   <label className="block text-xs font-semibold text-slate-400 mb-2">
-                    Contenido del Documento / PDF (puedes editarlo o pegar otro texto):
+                    Texto Extraído del PDF (puedes revisarlo o editarlo):
                   </label>
                   <textarea
-                    rows={15}
+                    rows={14}
                     value={pdfText}
                     onChange={(e) => setPdfText(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-2xl p-4 text-xs font-mono text-slate-300 leading-relaxed focus:outline-none resize-none"
-                    placeholder="Pega aquí el texto extraído del PDF..."
+                    placeholder="El texto extraído del PDF aparecerá aquí..."
                   />
                 </div>
 
@@ -452,6 +614,21 @@ export function DemoPortal() {
 
               {/* Columna Derecha: Chat y Consultas al PDF */}
               <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between h-[600px]">
+                {/* Header del Chat con contador */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Icon name="psychology" size={18} className="text-blue-400" />
+                    <span className="text-xs font-bold text-white">Consultas sobre el Documento</span>
+                  </div>
+
+                  <div className="text-[11px] font-mono">
+                    <span className="text-slate-400">Preguntas restantes: </span>
+                    <span className={questionsUsed >= MAX_QUESTIONS_ALLOWED ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                      {MAX_QUESTIONS_ALLOWED - questionsUsed} / {MAX_QUESTIONS_ALLOWED}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Historial de conversación */}
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2">
                   {pdfConversation.map((msg, idx) => (
@@ -493,23 +670,41 @@ export function DemoPortal() {
                   )}
                 </div>
 
-                {/* Input para preguntar */}
-                <form onSubmit={handleAskPdf} className="pt-4 border-t border-slate-800 flex gap-2">
-                  <input
-                    type="text"
-                    value={pdfQuestion}
-                    onChange={(e) => setPdfQuestion(e.target.value)}
-                    placeholder="Ej: ¿Cuáles son las condiciones de los backups y el SLA?"
-                    className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isAskingPdf || !pdfQuestion.trim()}
-                    className="px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
-                  >
-                    <Icon name="send" size={16} />
-                  </button>
-                </form>
+                {/* Input para preguntar o aviso de límite alcanzado */}
+                {questionsUsed >= MAX_QUESTIONS_ALLOWED ? (
+                  <div className="pt-3 border-t border-slate-800 p-3.5 bg-slate-950/90 rounded-2xl border border-slate-800/80 text-center">
+                    <p className="text-xs text-rose-300 font-bold mb-1">
+                      Has alcanzado el límite de {MAX_QUESTIONS_ALLOWED} preguntas para este PDF.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mb-3">
+                      Sube otro archivo PDF para iniciar una nueva sesión de análisis vectorial con 5 preguntas adicionales.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Icon name="upload_file" size={16} /> Subir Nuevo PDF
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleAskPdf} className="pt-4 border-t border-slate-800 flex gap-2">
+                    <input
+                      type="text"
+                      value={pdfQuestion}
+                      onChange={(e) => setPdfQuestion(e.target.value)}
+                      placeholder={`Pregunta sobre el documento (${MAX_QUESTIONS_ALLOWED - questionsUsed} restantes)...`}
+                      className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isAskingPdf || !pdfQuestion.trim()}
+                      className="px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                    >
+                      <Icon name="send" size={16} />
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           </div>

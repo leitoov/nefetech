@@ -737,6 +737,14 @@ export function AdminPanel() {
       });
     }
 
+    if (marginUSD > 0) {
+      items.push({
+        concept: 'Gestión Integral, QA & Despliegue',
+        detail: 'Control de calidad, pruebas funcionales, gestión de entregables y puesta en producción',
+        usd: marginUSD
+      });
+    }
+
     const expirationDate = new Date();
     expirationDate.setHours(expirationDate.getHours() + 24);
     const expirationStr = expirationDate.toLocaleString('es-AR', {
@@ -760,7 +768,6 @@ export function AdminPanel() {
           .logo span { color: #2563eb; }
           .badge { background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 99px; text-transform: uppercase; }
           .meta { font-size: 12px; color: #64748b; line-height: 1.6; }
-          .vigencia-box { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; padding: 10px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-bottom: 24px; display: inline-block; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
           th { background: #f8fafc; text-align: left; padding: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; border-bottom: 1px solid #e2e8f0; }
           td { padding: 14px 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
@@ -770,7 +777,8 @@ export function AdminPanel() {
           .totals-table td { padding: 8px 12px; font-size: 13px; }
           .total-box { background: #0f172a; color: white; padding: 20px 24px; border-radius: 16px; margin-top: 10px; text-align: right; }
           .total-box .val-usd { font-size: 32px; font-weight: 900; color: #34d399; font-family: monospace; }
-          .footer { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px; }
+          .footer { font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 24px; margin-top: 40px; line-height: 1.8; }
+          .vigencia-footer { color: #b45309; font-weight: 800; font-size: 12px; margin-bottom: 6px; }
           @media print {
             body { padding: 20px; }
             .no-print { display: none; }
@@ -787,10 +795,6 @@ export function AdminPanel() {
             <div class="badge">Propuesta Comercial</div>
             <div class="meta" style="margin-top: 6px;">Fecha de emisión: ${new Date().toLocaleDateString('es-AR')}</div>
           </div>
-        </div>
-
-        <div class="vigencia-box">
-          Este presupuesto se encuentra vigente por 24hs (${expirationStr})
         </div>
 
         <table>
@@ -830,6 +834,7 @@ export function AdminPanel() {
         </div>
 
         <div class="footer">
+          <div class="vigencia-footer">Este presupuesto se encuentra vigente por 24hs (${expirationStr})</div>
           Nefetech • comercial@nefetech.online • WhatsApp: +54 9 11 7060-5129 • https://nefetech.online<br>
           Este documento es una cotización técnica preliminar no contractual. Sujeto a firma de alcance de proyecto.
         </div>

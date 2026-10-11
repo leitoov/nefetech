@@ -53,7 +53,13 @@ export function AdminPanel() {
   // Parámetros calculables
   const [calcHours, setCalcHours] = useState(50);
   const [calcHourlyRate, setCalcHourlyRate] = useState(35);
-  const [calcSelectedLang, setCalcSelectedLang] = useState('React / Next.js');
+  
+  // Selección de Stack: 'combo' o 'custom' (individual)
+  const [calcStackMode, setCalcStackMode] = useState('combo');
+  const [calcSelectedCombo, setCalcSelectedCombo] = useState('MERN (React + Node.js)');
+  const [calcSelectedFrontend, setCalcSelectedFrontend] = useState('React / Next.js');
+  const [calcSelectedBackend, setCalcSelectedBackend] = useState('Node.js / Express / NestJS');
+  
   const [calcSelectedIA, setCalcSelectedIA] = useState('RAG Semántico con Base Vectorial');
   const [calcSelectedAsesoria, setCalcSelectedAsesoria] = useState('Diagnóstico Inicial de Procesos y Arquitectura');
   const [calcIncludeDomain, setCalcIncludeDomain] = useState(true);
@@ -205,7 +211,14 @@ export function AdminPanel() {
         const est = data.estimation;
         setAiAnalysisResult(est.analisis || 'Estimación procesada con éxito.');
         if (est.horas_sugeridas) setCalcHours(Number(est.horas_sugeridas));
-        if (est.lenguaje_sugerido) setCalcSelectedLang(est.lenguaje_sugerido);
+        if (est.stack_tipo === 'combo' && est.combo_sugerido) {
+          setCalcStackMode('combo');
+          setCalcSelectedCombo(est.combo_sugerido);
+        } else if (est.frontend_sugerido || est.backend_sugerido) {
+          setCalcStackMode('custom');
+          if (est.frontend_sugerido) setCalcSelectedFrontend(est.frontend_sugerido);
+          if (est.backend_sugerido) setCalcSelectedBackend(est.backend_sugerido);
+        }
         if (est.ia_modulo_sugerido) setCalcSelectedIA(est.ia_modulo_sugerido);
         if (est.diseno_sugerido) setCalcSelectedDesign(est.diseno_sugerido);
         if (est.servidor_sugerido) setCalcServerType(est.servidor_sugerido);
@@ -286,10 +299,26 @@ export function AdminPanel() {
     }
   };
 
-  // Cálculos matemáticos de la Calculadora
-  const selectedLangObj = budgetConfig?.languages?.find(l => l.name === calcSelectedLang);
-  const langFactor = selectedLangObj ? Number(selectedLangObj.factor) : 1.0;
-  const costDevelopmentUSD = calcHours * calcHourlyRate * langFactor;
+  // Cálculos matemáticos de la Calculadora con soporte de Combos y Stack Individual
+  let stackFactor = 1.0;
+  let stackDescription = '';
+
+  if (calcStackMode === 'combo') {
+    const comboObj = budgetConfig?.stack_combos?.find(c => c.name === calcSelectedCombo);
+    stackFactor = comboObj ? Number(comboObj.factor) : 1.2;
+    stackDescription = comboObj ? `${comboObj.name} (${comboObj.frontend} + ${comboObj.backend})` : calcSelectedCombo;
+  } else {
+    // Modo individual / personalizado (mezclar front y back)
+    const frontObj = budgetConfig?.frontend_techs?.find(f => f.name === calcSelectedFrontend);
+    const backObj = budgetConfig?.backend_techs?.find(b => b.name === calcSelectedBackend);
+    const frontFactor = frontObj ? Number(frontObj.factor) : 1.15;
+    const backFactor = backObj ? Number(backObj.factor) : 1.15;
+    // Promedio ponderado o factor combinado
+    stackFactor = Number(((frontFactor + backFactor) / 2).toFixed(2));
+    stackDescription = `${calcSelectedFrontend} + ${calcSelectedBackend}`;
+  }
+
+  const costDevelopmentUSD = calcHours * calcHourlyRate * stackFactor;
 
   const selectedIaObj = budgetConfig?.ia_modules?.find(i => i.name === calcSelectedIA);
   const costIaUSD = selectedIaObj ? Number(selectedIaObj.cost_usd) : 0;
@@ -1227,20 +1256,89 @@ export function AdminPanel() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Stack / Lenguaje:
-                  </label>
-                  <select
-                    value={calcSelectedLang}
-                    onChange={(e) => setCalcSelectedLang(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
-                  >
-                    {budgetConfig?.languages?.map((lang) => (
-                      <option key={lang.name} value={lang.name}>
-                        {lang.name} (Factor: x{lang.factor})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Stack Tecnológico:
+                    </label>
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setCalcStackMode('combo')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                          calcStackMode === 'combo' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Combos Predefinidos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalcStackMode('custom')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                          calcStackMode === 'custom' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Individual (Front + Back)
+                      </button>
+                    </div>
+                  </div>
+
+                  {calcStackMode === 'combo' ? (
+                    <div>
+                      <select
+                        value={calcSelectedCombo}
+                        onChange={(e) => setCalcSelectedCombo(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                      >
+                        {budgetConfig?.stack_combos?.map((combo) => (
+                          <option key={combo.name} value={combo.name}>
+                            {combo.name} — ({combo.frontend} + {combo.backend}) [Factor x{combo.factor}]
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-slate-400 mt-1.5">
+                        Multiplicador de combo activo: <strong className="text-blue-600 font-mono">x{stackFactor}</strong>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Frontend:
+                        </label>
+                        <select
+                          value={calcSelectedFrontend}
+                          onChange={(e) => setCalcSelectedFrontend(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                        >
+                          {budgetConfig?.frontend_techs?.map((front) => (
+                            <option key={front.name} value={front.name}>
+                              {front.name} (x{front.factor})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Backend / API:
+                        </label>
+                        <select
+                          value={calcSelectedBackend}
+                          onChange={(e) => setCalcSelectedBackend(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                        >
+                          {budgetConfig?.backend_techs?.map((back) => (
+                            <option key={back.name} value={back.name}>
+                              {back.name} (x{back.factor})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 text-[11px] text-slate-400">
+                        Multiplicador combinado calculado: <strong className="text-blue-600 font-mono">x{stackFactor}</strong> ({calcSelectedFrontend} + {calcSelectedBackend})
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Asesoría y Consultoría */}
@@ -1415,7 +1513,8 @@ export function AdminPanel() {
                       <tbody>
                         <tr className="border-b border-slate-100">
                           <td className="py-2.5 text-slate-600 font-medium">
-                            Desarrollo ({calcHours}h x ${calcHourlyRate} x{langFactor}):
+                            <div>Desarrollo ({calcHours}h x ${calcHourlyRate} x{stackFactor}):</div>
+                            <div className="text-[10px] text-blue-600 font-semibold">{stackDescription}</div>
                           </td>
                           <td className="py-2.5 text-right font-bold font-mono text-slate-900">
                             ${costDevelopmentUSD.toLocaleString()} USD
@@ -1487,7 +1586,7 @@ export function AdminPanel() {
                   <div className="mt-6 pt-5 border-t border-slate-100 space-y-2">
                     <button
                       onClick={() => {
-                        const copyText = `Propuesta estimada: ${calcHours} horas de desarrollo en ${calcSelectedLang}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización blue).`;
+                        const copyText = `Propuesta estimada Nefetech: ${calcHours} horas de desarrollo en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización blue).`;
                         navigator.clipboard.writeText(copyText);
                         alert('¡Resumen de presupuesto copiado al portapapeles!');
                       }}
@@ -1558,39 +1657,268 @@ export function AdminPanel() {
                     </div>
                   </div>
 
-                  {/* Factores de Lenguajes */}
+                  {/* 2. Tecnologías Frontend (Añadir / Eliminar / Editar) */}
                   <div>
-                    <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      2. Factores Multiplicadores por Lenguaje / Stack
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                          2. Tecnologías Frontend (Individuales)
+                        </h3>
+                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías frontend con su multiplicador.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...(budgetConfig.frontend_techs || [])];
+                          updated.push({ name: 'Nuevo Frontend', factor: 1.10 });
+                          setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
+                        }}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Icon name="add" size={14} />
+                        <span>Añadir Frontend</span>
+                      </button>
+                    </div>
+
                     <div className="space-y-2.5">
-                      {budgetConfig.languages?.map((lang, idx) => (
-                        <div key={idx} className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      {budgetConfig.frontend_techs?.map((front, idx) => (
+                        <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                           <input
                             type="text"
-                            value={lang.name}
+                            value={front.name}
+                            placeholder="Ej. React / Next.js"
                             onChange={(e) => {
-                              const updated = [...budgetConfig.languages];
+                              const updated = [...budgetConfig.frontend_techs];
                               updated[idx].name = e.target.value;
-                              setBudgetConfig({ ...budgetConfig, languages: updated });
+                              setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
                             }}
                             className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
                           />
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-bold">Multiplicador: x</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-500 font-bold">x</span>
                             <input
                               type="number"
                               step="0.05"
                               min="0.5"
                               max="3"
-                              value={lang.factor}
+                              value={front.factor}
                               onChange={(e) => {
-                                const updated = [...budgetConfig.languages];
+                                const updated = [...budgetConfig.frontend_techs];
                                 updated[idx].factor = Number(e.target.value);
-                                setBudgetConfig({ ...budgetConfig, languages: updated });
+                                setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
                               }}
-                              className="w-20 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                              className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
                             />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (budgetConfig.frontend_techs.length <= 1) {
+                                alert('Debes conservar al menos una tecnología frontend');
+                                return;
+                              }
+                              const updated = budgetConfig.frontend_techs.filter((_, i) => i !== idx);
+                              setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Eliminar tecnología"
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Tecnologías Backend (Añadir / Eliminar / Editar) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                          3. Tecnologías Backend (Individuales)
+                        </h3>
+                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías backend / APIs con su multiplicador.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...(budgetConfig.backend_techs || [])];
+                          updated.push({ name: 'Nuevo Backend', factor: 1.15 });
+                          setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                        }}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Icon name="add" size={14} />
+                        <span>Añadir Backend</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {budgetConfig.backend_techs?.map((back, idx) => (
+                        <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                          <input
+                            type="text"
+                            value={back.name}
+                            placeholder="Ej. Node.js / NestJS"
+                            onChange={(e) => {
+                              const updated = [...budgetConfig.backend_techs];
+                              updated[idx].name = e.target.value;
+                              setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-500 font-bold">x</span>
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="0.5"
+                              max="3"
+                              value={back.factor}
+                              onChange={(e) => {
+                                const updated = [...budgetConfig.backend_techs];
+                                updated[idx].factor = Number(e.target.value);
+                                setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                              }}
+                              className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (budgetConfig.backend_techs.length <= 1) {
+                                alert('Debes conservar al menos una tecnología backend');
+                                return;
+                              }
+                              const updated = budgetConfig.backend_techs.filter((_, i) => i !== idx);
+                              setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Eliminar backend"
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 4. Combos de Stack (Mezclar Front + Back con Multiplicador Especial) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                          4. Combos de Stack (Front + Back Empaquetados)
+                        </h3>
+                        <p className="text-[11px] text-slate-500">Crea combos combinando un lenguaje backend y uno frontend.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...(budgetConfig.stack_combos || [])];
+                          const defaultFront = budgetConfig.frontend_techs?.[0]?.name || 'React / Next.js';
+                          const defaultBack = budgetConfig.backend_techs?.[0]?.name || 'Node.js / Express / NestJS';
+                          updated.push({
+                            name: `Nuevo Combo Stack (${updated.length + 1})`,
+                            frontend: defaultFront,
+                            backend: defaultBack,
+                            factor: 1.25
+                          });
+                          setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                        }}
+                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Icon name="add" size={14} />
+                        <span>Crear Nuevo Combo</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {budgetConfig.stack_combos?.map((combo, idx) => (
+                        <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="text"
+                              value={combo.name}
+                              placeholder="Nombre del combo (ej. MERN Stack)"
+                              onChange={(e) => {
+                                const updated = [...budgetConfig.stack_combos];
+                                updated[idx].name = e.target.value;
+                                setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                              }}
+                              className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500 font-bold">Multiplicador: x</span>
+                              <input
+                                type="number"
+                                step="0.05"
+                                min="0.5"
+                                max="3"
+                                value={combo.factor}
+                                onChange={(e) => {
+                                  const updated = [...budgetConfig.stack_combos];
+                                  updated[idx].factor = Number(e.target.value);
+                                  setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                }}
+                                className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (budgetConfig.stack_combos.length <= 1) {
+                                  alert('Debes conservar al menos un combo de stack');
+                                  return;
+                                }
+                                const updated = budgetConfig.stack_combos.filter((_, i) => i !== idx);
+                                setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Eliminar combo"
+                            >
+                              <Icon name="delete" size={16} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                Frontend del Combo:
+                              </span>
+                              <select
+                                value={combo.frontend}
+                                onChange={(e) => {
+                                  const updated = [...budgetConfig.stack_combos];
+                                  updated[idx].frontend = e.target.value;
+                                  setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
+                              >
+                                {budgetConfig.frontend_techs?.map((f) => (
+                                  <option key={f.name} value={f.name}>{f.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                Backend del Combo:
+                              </span>
+                              <select
+                                value={combo.backend}
+                                onChange={(e) => {
+                                  const updated = [...budgetConfig.stack_combos];
+                                  updated[idx].backend = e.target.value;
+                                  setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
+                              >
+                                {budgetConfig.backend_techs?.map((b) => (
+                                  <option key={b.name} value={b.name}>{b.name}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1600,7 +1928,7 @@ export function AdminPanel() {
                   {/* Asesoría y Consultoría */}
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      3. Servicios de Asesoría & Consultoría Tecnológica (USD Fijo)
+                      5. Servicios de Asesoría & Consultoría Tecnológica (USD Fijo)
                     </h3>
                     <div className="space-y-2.5">
                       {budgetConfig.consultoria_modules?.map((c, idx) => (
@@ -1638,7 +1966,7 @@ export function AdminPanel() {
                   {/* Módulos de IA */}
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      4. Costos por Módulos de Inteligencia Artificial (USD Fijo)
+                      6. Costos por Módulos de Inteligencia Artificial (USD Fijo)
                     </h3>
                     <div className="space-y-2.5">
                       {budgetConfig.ia_modules?.map((ia, idx) => (
@@ -1676,7 +2004,7 @@ export function AdminPanel() {
                   {/* Infraestructura */}
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      5. Costos de Infraestructura y Servidores (USD)
+                      7. Costos de Infraestructura y Servidores (USD)
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">

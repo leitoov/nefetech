@@ -289,12 +289,47 @@ class ChatDB {
         // Valores por defecto predefinidos en USD si la tabla está vacía
         $defaults = [
             'hourly_rate' => 35, // USD por hora base
-            'languages' => [
-                ['name' => 'PHP / Laravel', 'factor' => 1.0],
-                ['name' => 'Node.js / Express', 'factor' => 1.1],
+            'frontend_techs' => [
                 ['name' => 'React / Next.js', 'factor' => 1.15],
-                ['name' => 'Python / FastAPI', 'factor' => 1.25],
-                ['name' => 'Flutter / React Native (Mobile)', 'factor' => 1.3]
+                ['name' => 'Vue.js / Nuxt', 'factor' => 1.10],
+                ['name' => 'Angular', 'factor' => 1.20],
+                ['name' => 'HTML / CSS / Vanilla JS', 'factor' => 0.90],
+                ['name' => 'Flutter / React Native (Mobile)', 'factor' => 1.30]
+            ],
+            'backend_techs' => [
+                ['name' => 'Node.js / Express / NestJS', 'factor' => 1.15],
+                ['name' => 'PHP / Laravel', 'factor' => 1.05],
+                ['name' => 'Python / FastAPI / Django', 'factor' => 1.25],
+                ['name' => 'Go / Golang', 'factor' => 1.30],
+                ['name' => 'Java / Spring Boot', 'factor' => 1.30],
+                ['name' => '.NET / C#', 'factor' => 1.25],
+                ['name' => 'Serverless / Firebase / Supabase', 'factor' => 1.00]
+            ],
+            'stack_combos' => [
+                [
+                    'name' => 'MERN (React + Node.js)',
+                    'frontend' => 'React / Next.js',
+                    'backend' => 'Node.js / Express / NestJS',
+                    'factor' => 1.20
+                ],
+                [
+                    'name' => 'Fullstack Laravel (Laravel + React/Vue)',
+                    'frontend' => 'React / Next.js',
+                    'backend' => 'PHP / Laravel',
+                    'factor' => 1.15
+                ],
+                [
+                    'name' => 'AI Stack (React + Python FastAPI)',
+                    'frontend' => 'React / Next.js',
+                    'backend' => 'Python / FastAPI / Django',
+                    'factor' => 1.30
+                ],
+                [
+                    'name' => 'Serverless Jamstack (Next.js + Supabase)',
+                    'frontend' => 'React / Next.js',
+                    'backend' => 'Serverless / Firebase / Supabase',
+                    'factor' => 1.10
+                ]
             ],
             'ia_modules' => [
                 ['name' => 'Sin IA', 'cost_usd' => 0],

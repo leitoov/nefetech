@@ -64,7 +64,10 @@ DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO (sin bloques de códig
 {
   "analisis": "Breve explicación de 2 a 3 oraciones sobre por qué se sugieren estas horas y tecnologías",
   "horas_sugeridas": 60,
-  "lenguaje_sugerido": "React / Next.js",
+  "stack_tipo": "combo",
+  "combo_sugerido": "MERN (React + Node.js)",
+  "frontend_sugerido": "React / Next.js",
+  "backend_sugerido": "Node.js / Express / NestJS",
   "ia_modulo_sugerido": "RAG Semántico con Base Vectorial",
   "diseno_sugerido": "UI Kit Moderno & Responsive (Tailwind)",
   "servidor_sugerido": "server_basic_monthly_usd",

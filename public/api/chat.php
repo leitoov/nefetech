@@ -109,6 +109,23 @@ if (preg_match($saludosRegex, $cleanMsg) || in_array($cleanMsg, ['hola', 'buenas
     exit;
 }
 
+// 5.1 INTERCEPCIÓN RÁPIDA DE CONSULTAS DE PRECIOS, COSTOS Y PRESUPUESTOS (0 tokens)
+$preciosRegex = '/\b(costo|costos|cuanto cuesta|cuanto sale|precio|precios|presupuesto|presupuestos|cuanto cobran|cuanto por hora|valor por hora|tarifa|tarifas|cuanto vale|cotizacion|cotizar)\b/iu';
+
+if (preg_match($preciosRegex, $cleanMsg)) {
+    $precioResponse = "Cada proyecto tiene un alcance, complejidad y requerimientos particulares, por lo que no manejamos precios fijos ni tarifas estándar. Elaboramos presupuestos personalizados y a medida según las necesidades de tu negocio.\n\nPara cotizar tu idea o consultar disponibilidad y tiempos estimados, escríbenos directamente por WhatsApp al +54 9 11 7060-5129 o por correo a comercial@nefetech.online.";
+    ChatDB::logMessage($sessionId, 'bot', $precioResponse, 0);
+
+    echo json_encode([
+        'success' => true,
+        'pricing_intercepted' => true,
+        'messages_used' => $currentCount,
+        'remaining_messages' => $maxMessages - $currentCount,
+        'respuesta' => $precioResponse
+    ]);
+    exit;
+}
+
 // 6. CARGAR CREDENCIALES DE GEMINI
 $apiKey = EnvLoader::get('GEMINI_API_KEY', '');
 $model = EnvLoader::get('GEMINI_MODEL', 'gemini-3.5-flash-lite');
@@ -178,6 +195,9 @@ Abarcamos desde la integración en sistemas existentes, creación de bots y agen
 
 - Si preguntan sobre Consultoría:
 Brindamos asesoramiento sobre procesos a mejorar, cómo integrar nuevas soluciones y qué tecnologías se adecuan mejor según cada etapa y necesidad puntual (cada caso requiere un análisis a medida). Escríbenos por WhatsApp (+54 9 11 7060-5129) o a comercial@nefetech.online para coordinar una reunión.
+
+- Si preguntan sobre Precios, Presupuestos, Costos, Tarifas o Valor por hora:
+Cada proyecto tiene un alcance, complejidad y requerimientos particulares, por lo que no manejamos precios fijos ni tarifas estándar. Elaboramos presupuestos personalizados y a medida según las necesidades de tu negocio. Para cotizar tu idea o consultar disponibilidad y tiempos estimados, escríbenos directamente por WhatsApp al +54 9 11 7060-5129 o a comercial@nefetech.online.
 PROMPT;
 
 // 8. LLAMADA A GOOGLE GEMINI

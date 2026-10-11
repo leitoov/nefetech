@@ -304,7 +304,7 @@ export function AIChatModal({ isOpen, onClose }) {
         <div className="bg-blue-50/80 border-b border-blue-100/80 px-4 py-2 flex items-center justify-between text-xs text-blue-900 shrink-0">
           <div className="flex items-center gap-1.5 font-medium">
             <Icon name="support_agent" size={16} className="text-blue-600" />
-            <span>¿Prefieres atención humana inmediata?</span>
+            <span>¿Prefieres atención humana?</span>
           </div>
           <a
             href={WHATSAPP_URL}

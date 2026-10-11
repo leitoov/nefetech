@@ -143,6 +143,9 @@ class ChatDB {
                 CREATE TABLE IF NOT EXISTS demo_pdf_usage (
                     ip_address TEXT PRIMARY KEY,
                     question_count INTEGER DEFAULT 0,
+                    contact_attempts INTEGER DEFAULT 0,
+                    lead_contact TEXT DEFAULT NULL,
+                    lead_requested INTEGER DEFAULT 0,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
@@ -325,10 +328,27 @@ class ChatDB {
                 CREATE TABLE IF NOT EXISTS demo_pdf_usage (
                     ip_address VARCHAR(45) PRIMARY KEY,
                     question_count INT DEFAULT 0,
+                    contact_attempts INT DEFAULT 0,
+                    lead_contact VARCHAR(255) DEFAULT NULL,
+                    lead_requested TINYINT(1) DEFAULT 0,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
+
+            // Asegurar columnas dinámicas si la tabla ya existía
+            try {
+                self::$pdo->exec("ALTER TABLE chat_sessions ADD COLUMN contact_attempts INT DEFAULT 0");
+            } catch (Exception $e) {}
+            try {
+                self::$pdo->exec("ALTER TABLE demo_pdf_usage ADD COLUMN contact_attempts INT DEFAULT 0");
+            } catch (Exception $e) {}
+            try {
+                self::$pdo->exec("ALTER TABLE demo_pdf_usage ADD COLUMN lead_contact VARCHAR(255) DEFAULT NULL");
+            } catch (Exception $e) {}
+            try {
+                self::$pdo->exec("ALTER TABLE demo_pdf_usage ADD COLUMN lead_requested TINYINT(1) DEFAULT 0");
+            } catch (Exception $e) {}
         }
     }
 
@@ -1393,21 +1413,70 @@ PROMPT;
         }
     }
 
+    /**
+     * Obtiene los intentos de solicitud de contacto para una sesión de chat web
+     */
+    public static function getSessionContactAttempts(string $sessionId): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT contact_attempts FROM chat_sessions WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : 0;
+    }
+
+    /**
+     * Incrementa los intentos de solicitud de contacto para una sesión de chat web
+     */
+    public static function incrementSessionContactAttempts(string $sessionId): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            UPDATE chat_sessions 
+            SET contact_attempts = COALESCE(contact_attempts, 0) + 1, last_activity = CURRENT_TIMESTAMP 
+            WHERE session_id = ?
+        ");
+        $stmt->execute([$sessionId]);
+
+        return self::getSessionContactAttempts($sessionId);
+    }
+
     // ==========================================
     // DEMO PDF IP USAGE METHODS
     // ==========================================
 
     /**
-     * Obtiene la cantidad de preguntas gastadas por una IP en la demo de PDF
+     * Obtiene el detalle completo de uso de la IP en la demo de PDF
      */
-    public static function getDemoPdfUsage(string $ip): int {
+    public static function getDemoPdfDetails(string $ip): array {
         $db = self::getConnection();
         self::initTables();
 
-        $stmt = $db->prepare("SELECT question_count FROM demo_pdf_usage WHERE ip_address = ?");
+        $stmt = $db->prepare("SELECT * FROM demo_pdf_usage WHERE ip_address = ?");
         $stmt->execute([$ip]);
-        $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : 0;
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return [
+                'ip_address' => $ip,
+                'question_count' => 0,
+                'contact_attempts' => 0,
+                'lead_contact' => null,
+                'lead_requested' => 0
+            ];
+        }
+
+        return $row;
+    }
+
+    /**
+     * Obtiene la cantidad de preguntas gastadas por una IP en la demo de PDF
+     */
+    public static function getDemoPdfUsage(string $ip): int {
+        $details = self::getDemoPdfDetails($ip);
+        return (int)($details['question_count'] ?? 0);
     }
 
     /**
@@ -1427,10 +1496,59 @@ PROMPT;
             $stmtUp->execute([$newCount, $ip]);
             return $newCount;
         } else {
-            $stmtIns = $db->prepare("INSERT INTO demo_pdf_usage (ip_address, question_count) VALUES (?, 1)");
+            $stmtIns = $db->prepare("INSERT INTO demo_pdf_usage (ip_address, question_count, contact_attempts) VALUES (?, 1, 0)");
             $stmtIns->execute([$ip]);
             return 1;
         }
+    }
+
+    /**
+     * Incrementa los intentos de solicitud de datos de contacto de la IP
+     */
+    public static function incrementDemoContactAttempts(string $ip): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT contact_attempts FROM demo_pdf_usage WHERE ip_address = ?");
+        $stmt->execute([$ip]);
+        $row = $stmt->fetch();
+
+        if ($row) {
+            $newAttempts = (int)($row['contact_attempts'] ?? 0) + 1;
+            $stmtUp = $db->prepare("UPDATE demo_pdf_usage SET contact_attempts = ?, updated_at = CURRENT_TIMESTAMP WHERE ip_address = ?");
+            $stmtUp->execute([$newAttempts, $ip]);
+            return $newAttempts;
+        } else {
+            $stmtIns = $db->prepare("INSERT INTO demo_pdf_usage (ip_address, question_count, contact_attempts) VALUES (?, 0, 1)");
+            $stmtIns->execute([$ip]);
+            return 1;
+        }
+    }
+
+    /**
+     * Guarda el contacto del usuario en la demo y lo asocia como lead
+     */
+    public static function saveDemoPdfLead(string $ip, string $contact, string $documentName = '', string $userMessage = ''): bool {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            UPDATE demo_pdf_usage 
+            SET lead_contact = ?, lead_requested = 1, updated_at = CURRENT_TIMESTAMP 
+            WHERE ip_address = ?
+        ");
+        $stmt->execute([$contact, $ip]);
+
+        // Registrar también en tabla leads para que aparezca en el panel de administración
+        $isEmail = filter_var($contact, FILTER_VALIDATE_EMAIL);
+        $email = $isEmail ? $contact : null;
+        $phone = !$isEmail ? $contact : null;
+        $desc = "Lead recibido desde demo.nefetech.online (Lector de PDF: {$documentName}). Mensaje o consulta: {$userMessage}";
+
+        $sessionId = 'demo_' . md5($ip);
+        self::saveLead($sessionId, $email, $phone, $desc, $ip);
+
+        return true;
     }
 }
 

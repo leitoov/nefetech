@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../utils/EnvLoader.php';
 require_once __DIR__ . '/../utils/VectorCache.php';
 require_once __DIR__ . '/../utils/ChatDB.php';
+require_once __DIR__ . '/../utils/LeadMailer.php';
 EnvLoader::load();
 
 $action = $_GET['action'] ?? '';
@@ -35,15 +36,70 @@ if (strpos($clientIp, ',') !== false) {
 try {
     switch ($action) {
         case 'usage':
-            // Devuelve el estado de uso de preguntas de la IP
-            $usedQuestions = ChatDB::getDemoPdfUsage($clientIp);
+            // Devuelve el estado de uso de preguntas y contacto de la IP
+            $details = ChatDB::getDemoPdfDetails($clientIp);
+            $usedQuestions = (int)($details['question_count'] ?? 0);
+            $contactAttempts = (int)($details['contact_attempts'] ?? 0);
+            $hasLeadContact = !empty($details['lead_contact']);
+            $leadRequested = (bool)($details['lead_requested'] ?? false);
+            
+            // Si alcanzó las 5 preguntas y se le pidió contacto 2 veces sin datos, el chat está terminado
+            $isTerminated = ($usedQuestions >= 5 && !$hasLeadContact && $contactAttempts >= 2);
+
             echo json_encode([
                 'success' => true,
                 'ip' => $clientIp,
                 'used_questions' => $usedQuestions,
                 'max_questions' => 5,
                 'remaining' => max(0, 5 - $usedQuestions),
-                'is_blocked' => $usedQuestions >= 5
+                'is_blocked' => $usedQuestions >= 5,
+                'has_contact' => $hasLeadContact,
+                'lead_contact' => $details['lead_contact'] ?? null,
+                'contact_attempts' => $contactAttempts,
+                'is_terminated' => $isTerminated
+            ]);
+            break;
+
+        case 'lead':
+            // Endpoint directo para guardar datos de contacto y "Pedir presupuesto a un asesor"
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Método no permitido', 405);
+            }
+
+            $contact = trim($input['contact'] ?? '');
+            $userMessage = trim($input['message'] ?? 'Solicitud de presupuesto y asesoramiento para implementación RAG / IA.');
+            $documentName = trim($input['document_name'] ?? 'Documento Demo PDF');
+
+            if (empty($contact)) {
+                throw new Exception('Por favor ingresa tu email o teléfono de contacto.');
+            }
+
+            // Validar si el texto contiene email o teléfono
+            $extracted = LeadMailer::extractContactInfo($contact);
+            $hasEmail = !empty($extracted['emails']);
+            $hasPhone = !empty($extracted['phones']);
+
+            if (!$hasEmail && !$hasPhone && !filter_var($contact, FILTER_VALIDATE_EMAIL)) {
+                throw new Exception('Por favor ingresa un correo electrónico válido o un número de teléfono / WhatsApp.');
+            }
+
+            // Guardar lead en la base de datos
+            ChatDB::saveDemoPdfLead($clientIp, $contact, $documentName, $userMessage);
+
+            // Enviar notificación por mail al equipo comercial
+            try {
+                $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Demo RAG Web';
+                $demoSessionId = 'demo_' . md5($clientIp);
+                LeadMailer::sendLeadNotification($demoSessionId, "Contacto: {$contact}\nDocumento: {$documentName}\nConsulta: {$userMessage}", $clientIp, $userAgent);
+            } catch (Exception $e) {
+                // Silencioso
+            }
+
+            echo json_encode([
+                'success' => true,
+                'lead_saved' => true,
+                'message' => '¡Excelente! Hemos recibido tus datos. Un asesor de Nefetech se contactará contigo a la brevedad con la cotización.',
+                'lead_contact' => $contact
             ]);
             break;
 
@@ -116,24 +172,76 @@ try {
                 throw new Exception('Método no permitido', 405);
             }
 
-            // VERIFICACIÓN ESTRICTA POR IP: MÁXIMO 5 PREGUNTAS EN TOTAL
-            $currentIpUsage = ChatDB::getDemoPdfUsage($clientIp);
-            if ($currentIpUsage >= 5) {
-                http_response_code(429);
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Has alcanzado el límite de 5 preguntas.',
-                    'is_blocked' => true,
-                    'used_questions' => 5
-                ]);
-                exit;
-            }
-
             $question = trim($input['question'] ?? '');
+            $documentName = trim($input['document_name'] ?? 'Documento.pdf');
             $vectors = $input['vectors'] ?? [];
 
             if (empty($question)) {
                 throw new Exception('La pregunta no puede estar vacía.');
+            }
+
+            // Obtener estado actual de la IP
+            $details = ChatDB::getDemoPdfDetails($clientIp);
+            $currentIpUsage = (int)($details['question_count'] ?? 0);
+            $contactAttempts = (int)($details['contact_attempts'] ?? 0);
+            $hasLeadContact = !empty($details['lead_contact']);
+
+            // Detectar si el mensaje enviado contiene datos de contacto (email o teléfono)
+            $contactCheck = LeadMailer::extractContactInfo($question);
+            $foundEmail = !empty($contactCheck['emails']);
+            $foundPhone = !empty($contactCheck['phones']);
+
+            if ($foundEmail || $foundPhone) {
+                $contactVal = $foundEmail ? $contactCheck['emails'][0] : $contactCheck['phones'][0];
+                ChatDB::saveDemoPdfLead($clientIp, $contactVal, $documentName, $question);
+                try {
+                    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Demo RAG Web';
+                    $demoSessionId = 'demo_' . md5($clientIp);
+                    LeadMailer::sendLeadNotification($demoSessionId, $question, $clientIp, $userAgent);
+                } catch (Exception $e) {}
+
+                $thankReply = "¡Muchas gracias! Ya recibimos tus datos de contacto con éxito ({$contactVal}). Puedes pedir un presupuesto personalizado a uno de nuestros asesores cuando lo desees.";
+                echo json_encode([
+                    'success' => true,
+                    'lead_saved' => true,
+                    'has_contact' => true,
+                    'lead_contact' => $contactVal,
+                    'answer' => $thankReply,
+                    'used_questions' => $currentIpUsage,
+                    'is_blocked' => $currentIpUsage >= 5,
+                    'is_terminated' => false
+                ]);
+                exit;
+            }
+
+            // SI YA SE ALCANZARON LAS 5 PREGUNTAS:
+            if ($currentIpUsage >= 5) {
+                // Incrementar intento de solicitud de datos de contacto
+                $newAttempts = ChatDB::incrementDemoContactAttempts($clientIp);
+
+                // Si ya se le pidió 2 veces los datos de contacto y no los pasó, SE TERMINA EL CHAT
+                if ($newAttempts >= 2) {
+                    echo json_encode([
+                        'success' => true,
+                        'limit_reached' => true,
+                        'is_blocked' => true,
+                        'is_terminated' => true,
+                        'used_questions' => 5,
+                        'answer' => 'Has alcanzado el límite de 5 preguntas. El chat ha finalizado. Para cotizaciones o una demostración para tu empresa, puedes contactarnos a comercial@nefetech.online o por WhatsApp al +54 9 11 7060-5129.'
+                    ]);
+                    exit;
+                }
+
+                // Primer intento de pedir los datos tras vencerse el límite
+                echo json_encode([
+                    'success' => true,
+                    'ask_contact_info' => true,
+                    'is_blocked' => true,
+                    'is_terminated' => false,
+                    'used_questions' => 5,
+                    'answer' => 'Has alcanzado las 5 preguntas del documento. Por favor indícanos tu correo electrónico o WhatsApp y tu consulta para que un asesor te arme un presupuesto personalizado.'
+                ]);
+                exit;
             }
 
             if (empty($vectors) || !is_array($vectors)) {
@@ -225,7 +333,10 @@ Sé preciso, profesional, claro y cita el número de fragmento cuando correspond
                 'answer' => $answer,
                 'relevant_chunks' => $topContexts,
                 'used_questions' => $newIpUsage,
-                'is_blocked' => $newIpUsage >= 5
+                'is_blocked' => $newIpUsage >= 5,
+                'has_contact' => $hasLeadContact,
+                'lead_contact' => $details['lead_contact'] ?? null,
+                'prompt_contact' => ($newIpUsage >= 4 && !$hasLeadContact)
             ]);
             break;
 

@@ -123,6 +123,16 @@ export function DemoPortal() {
 
   // Contador de preguntas por IP (máximo 5)
   const [questionsUsed, setQuestionsUsed] = useState(0);
+  const [hasLeadContact, setHasLeadContact] = useState(false);
+  const [leadContactValue, setLeadContactValue] = useState('');
+  const [isChatTerminated, setIsChatTerminated] = useState(false);
+
+  // Modal para pedir presupuesto a un asesor
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [quoteContactInput, setQuoteContactInput] = useState('');
+  const [quoteMessageInput, setQuoteMessageInput] = useState('');
+  const [isSendingQuote, setIsSendingQuote] = useState(false);
+  const [quoteSuccessMsg, setQuoteSuccessMsg] = useState('');
 
   // Consultar uso de la IP al montar el componente
   useEffect(() => {
@@ -130,8 +140,18 @@ export function DemoPortal() {
       try {
         const res = await fetch('/api/demo/rag.php?action=usage');
         const data = await res.json();
-        if (data.success && typeof data.used_questions === 'number') {
-          setQuestionsUsed(data.used_questions);
+        if (data.success) {
+          if (typeof data.used_questions === 'number') {
+            setQuestionsUsed(data.used_questions);
+          }
+          if (data.has_contact) {
+            setHasLeadContact(true);
+            setLeadContactValue(data.lead_contact || '');
+            setQuoteContactInput(data.lead_contact || '');
+          }
+          if (data.is_terminated) {
+            setIsChatTerminated(true);
+          }
         }
       } catch (e) {
         console.error('Error fetching IP usage:', e);
@@ -273,15 +293,13 @@ export function DemoPortal() {
     e.preventDefault();
     if (!pdfQuestion.trim()) return;
 
-    if (questionsUsed >= MAX_QUESTIONS_ALLOWED) {
-      alert(`Has alcanzado el límite de ${MAX_QUESTIONS_ALLOWED} preguntas.`);
+    if (isChatTerminated) {
+      alert('Has alcanzado el límite de 5 preguntas.');
       return;
     }
 
     const q = pdfQuestion.trim();
     setPdfQuestion('');
-    const newQuestionsCount = questionsUsed + 1;
-    setQuestionsUsed(newQuestionsCount);
 
     setPdfConversation(prev => [...prev, { sender: 'user', text: q }]);
     setIsAskingPdf(true);
@@ -307,6 +325,7 @@ export function DemoPortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: q,
+          document_name: pdfFileName,
           vectors: currentVectors
         })
       });
@@ -315,6 +334,14 @@ export function DemoPortal() {
       if (data.success) {
         if (typeof data.used_questions === 'number') {
           setQuestionsUsed(data.used_questions);
+        }
+        if (data.has_contact) {
+          setHasLeadContact(true);
+          setLeadContactValue(data.lead_contact || '');
+          setQuoteContactInput(data.lead_contact || '');
+        }
+        if (data.is_terminated) {
+          setIsChatTerminated(true);
         }
         setPdfConversation(prev => [
           ...prev, 
@@ -328,6 +355,9 @@ export function DemoPortal() {
         if (data.is_blocked || data.used_questions >= 5) {
           setQuestionsUsed(5);
         }
+        if (data.is_terminated) {
+          setIsChatTerminated(true);
+        }
         setPdfConversation(prev => [
           ...prev, 
           { sender: 'bot', text: data.error || 'Lo siento, no pude procesar la consulta.' }
@@ -340,6 +370,54 @@ export function DemoPortal() {
       ]);
     } finally {
       setIsAskingPdf(false);
+    }
+  };
+
+  // Enviar presupuesto a un asesor desde la Demo de PDF
+  const handleSendQuote = async (e) => {
+    e.preventDefault();
+    const contact = quoteContactInput.trim();
+    if (!contact) {
+      alert('Por favor ingresa tu correo electrónico o teléfono.');
+      return;
+    }
+
+    setIsSendingQuote(true);
+    setQuoteSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/demo/rag.php?action=lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact: contact,
+          message: quoteMessageInput.trim() || `Solicitud de presupuesto para análisis y RAG sobre ${pdfFileName}`,
+          document_name: pdfFileName
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHasLeadContact(true);
+        setLeadContactValue(contact);
+        setQuoteSuccessMsg(data.message || '¡Solicitud enviada con éxito! Un asesor se comunicará a la brevedad.');
+        setPdfConversation(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            text: `¡Excelente! Hemos recibido tu solicitud de presupuesto para "${pdfFileName}". Un asesor comercial de Nefetech te enviará la propuesta detallada al contacto provisto (${contact}).`
+          }
+        ]);
+        setTimeout(() => {
+          setIsQuoteModalOpen(false);
+          setQuoteSuccessMsg('');
+        }, 2200);
+      } else {
+        alert(data.error || 'No se pudo enviar la solicitud. Revisa tus datos.');
+      }
+    } catch (err) {
+      alert('Error de conexión al enviar la solicitud.');
+    } finally {
+      setIsSendingQuote(false);
     }
   };
 
@@ -634,20 +712,47 @@ export function DemoPortal() {
 
               {/* Columna Derecha: Chat y Consultas al PDF */}
               <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between h-[600px]">
-                {/* Header del Chat con contador */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-2">
+                {/* Header del Chat con contador y botón Pedir Presupuesto */}
+                <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800 mb-2 gap-2">
                   <div className="flex items-center gap-2">
                     <Icon name="psychology" size={18} className="text-blue-400" />
                     <span className="text-xs font-bold text-white">Consultas sobre el Documento</span>
                   </div>
 
-                  <div className="text-[11px] font-mono">
-                    <span className="text-slate-400">Preguntas restantes: </span>
-                    <span className={questionsUsed >= MAX_QUESTIONS_ALLOWED ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-                      {MAX_QUESTIONS_ALLOWED - questionsUsed} / {MAX_QUESTIONS_ALLOWED}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsQuoteModalOpen(true)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Icon name="request_quote" size={14} />
+                      <span>Pedir presupuesto a un asesor</span>
+                    </button>
+
+                    <div className="text-[11px] font-mono">
+                      <span className="text-slate-400">Preguntas: </span>
+                      <span className={questionsUsed >= MAX_QUESTIONS_ALLOWED ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                        {questionsUsed} / {MAX_QUESTIONS_ALLOWED}
+                      </span>
+                    </div>
                   </div>
                 </div>
+
+                {/* Banner de contacto o asesor disponible */}
+                {hasLeadContact && (
+                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px] flex items-center justify-between">
+                    <span className="truncate">
+                      Datos registrados: <strong className="text-white">{leadContactValue}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuoteModalOpen(true)}
+                      className="text-xs underline text-blue-400 hover:text-blue-300 ml-2 shrink-0 font-medium cursor-pointer"
+                    >
+                      Enviar nueva consulta
+                    </button>
+                  </div>
+                )}
 
                 {/* Historial de conversación */}
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2">
@@ -690,33 +795,167 @@ export function DemoPortal() {
                   )}
                 </div>
 
-                {/* Input para preguntar o aviso de límite alcanzado */}
-                {questionsUsed >= MAX_QUESTIONS_ALLOWED ? (
-                  <div className="pt-3 border-t border-slate-800 p-4 bg-slate-950/90 rounded-2xl border border-slate-800/80 text-center">
+                {/* Input para preguntar o aviso de límite alcanzado / chat terminado */}
+                {isChatTerminated ? (
+                  <div className="pt-3 border-t border-slate-800 p-4 bg-slate-950/90 rounded-2xl border border-slate-800/80 text-center space-y-3">
                     <p className="text-xs text-rose-300 font-bold">
                       Has alcanzado el límite de 5 preguntas.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuoteModalOpen(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-emerald-900/30 inline-flex items-center gap-2 cursor-pointer"
+                    >
+                      <Icon name="support_agent" size={16} />
+                      Pedir presupuesto a un asesor
+                    </button>
+                  </div>
+                ) : questionsUsed >= MAX_QUESTIONS_ALLOWED ? (
+                  <div className="pt-3 border-t border-slate-800 p-3 bg-slate-950/90 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-xs text-rose-300 font-bold">
+                        Has alcanzado el límite de 5 preguntas.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsQuoteModalOpen(true)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Icon name="request_quote" size={14} />
+                        Pedir presupuesto a un asesor
+                      </button>
+                    </div>
+                    <form onSubmit={handleAskPdf} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={pdfQuestion}
+                        onChange={(e) => setPdfQuestion(e.target.value)}
+                        placeholder="Ingresa tu email o teléfono para coordinar con un asesor..."
+                        className="flex-1 bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAskingPdf || !pdfQuestion.trim()}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      >
+                        <Icon name="send" size={16} />
+                      </button>
+                    </form>
                   </div>
                 ) : (
-                  <form onSubmit={handleAskPdf} className="pt-4 border-t border-slate-800 flex gap-2">
-                    <input
-                      type="text"
-                      value={pdfQuestion}
-                      onChange={(e) => setPdfQuestion(e.target.value)}
-                      placeholder={`Pregunta sobre el documento (${MAX_QUESTIONS_ALLOWED - questionsUsed} restantes)...`}
-                      className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isAskingPdf || !pdfQuestion.trim()}
-                      className="px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
-                    >
-                      <Icon name="send" size={16} />
-                    </button>
-                  </form>
+                  <div className="pt-4 border-t border-slate-800 space-y-2">
+                    {questionsUsed >= 4 && !hasLeadContact && (
+                      <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-center justify-between">
+                        <span>Te queda 1 sola pregunta disponible.</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsQuoteModalOpen(true)}
+                          className="font-bold underline text-amber-200 hover:text-white cursor-pointer"
+                        >
+                          Dejar datos para asesor
+                        </button>
+                      </div>
+                    )}
+                    <form onSubmit={handleAskPdf} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={pdfQuestion}
+                        onChange={(e) => setPdfQuestion(e.target.value)}
+                        placeholder={`Pregunta sobre el documento (${MAX_QUESTIONS_ALLOWED - questionsUsed} restantes)...`}
+                        className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAskingPdf || !pdfQuestion.trim()}
+                        className="px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                      >
+                        <Icon name="send" size={16} />
+                      </button>
+                    </form>
+                  </div>
                 )}
               </div>
             </div>
+
+            {/* Modal: Pedir Presupuesto a un Asesor */}
+            {isQuoteModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <Icon name="support_agent" size={22} />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">Pedir Presupuesto a un Asesor</h3>
+                        <p className="text-[11px] text-slate-400">Atención personalizada y propuesta a medida</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuoteModalOpen(false)}
+                      className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                    >
+                      <Icon name="close" size={18} />
+                    </button>
+                  </div>
+
+                  {quoteSuccessMsg ? (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
+                      <Icon name="check_circle" size={32} className="text-emerald-400 mx-auto" />
+                      <p className="text-xs font-bold text-emerald-300">{quoteSuccessMsg}</p>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSendQuote} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                          Email o Teléfono / WhatsApp *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={quoteContactInput}
+                          onChange={(e) => setQuoteContactInput(e.target.value)}
+                          placeholder="ej: contacto@empresa.com o +54 9 11..."
+                          className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                          Consulta o requerimiento específico
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={quoteMessageInput}
+                          onChange={(e) => setQuoteMessageInput(e.target.value)}
+                          placeholder={`Deseo presupuesto para implementar un lector de documentos inteligente como "${pdfFileName}"...`}
+                          className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none resize-none"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-end gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsQuoteModalOpen(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSendingQuote || !quoteContactInput.trim()}
+                          className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-emerald-900/30 flex items-center gap-2 cursor-pointer"
+                        >
+                          <Icon name={isSendingQuote ? 'hourglass_top' : 'send'} size={14} className={isSendingQuote ? 'animate-spin' : ''} />
+                          {isSendingQuote ? 'Enviando...' : 'Enviar Solicitud'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

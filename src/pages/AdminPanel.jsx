@@ -828,8 +828,7 @@ export function AdminPanel() {
                   onClick={() => setActiveTab('calculadora')}
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Icon name="add" size={16} />
-                  <span>Nueva Cotización</span>
+                  <span>+ Nueva Cotización</span>
                 </button>
               </div>
             </div>
@@ -839,9 +838,6 @@ export function AdminPanel() {
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between text-slate-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Leads</span>
-                  <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Icon name="groups" size={18} />
-                  </div>
                 </div>
                 <div className="text-3xl font-black text-slate-900">{totalLeadsCount}</div>
                 <div className="text-[11px] text-slate-400 mt-1">Registrados en la plataforma</div>
@@ -850,9 +846,6 @@ export function AdminPanel() {
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between text-slate-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Nuevos Sin Contactar</span>
-                  <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Icon name="mark_email_unread" size={18} />
-                  </div>
                 </div>
                 <div className="text-3xl font-black text-amber-600">{nuevosLeadsCount}</div>
                 <div className="text-[11px] text-slate-400 mt-1">Requieren primera propuesta</div>
@@ -861,9 +854,6 @@ export function AdminPanel() {
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between text-slate-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">En Conversación</span>
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <Icon name="forum" size={18} />
-                  </div>
                 </div>
                 <div className="text-3xl font-black text-indigo-600">{enCursoLeadsCount}</div>
                 <div className="text-[11px] text-slate-400 mt-1">Con respuestas despachadas</div>
@@ -872,9 +862,6 @@ export function AdminPanel() {
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between text-slate-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa de Identificación</span>
-                  <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Icon name="contact_mail" size={18} />
-                  </div>
                 </div>
                 <div className="text-3xl font-black text-emerald-600">{tasaContacto}%</div>
                 <div className="text-[11px] text-slate-400 mt-1">De leads dejaron correo válido</div>
@@ -886,9 +873,8 @@ export function AdminPanel() {
               
               {/* Gráfico 1: Canales de Contacto */}
               <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
-                <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-5 flex items-center gap-2">
-                  <Icon name="pie_chart" size={18} className="text-blue-600" />
-                  <span>Distribución de Canales de Contacto</span>
+                <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-5">
+                  Distribución de Canales de Contacto
                 </h3>
 
                 <div className="space-y-4">
@@ -934,9 +920,8 @@ export function AdminPanel() {
               {/* Gráfico 2: Accesos Directos & Actividad Rápida */}
               <div className="lg:col-span-5 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 flex flex-col justify-between">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Icon name="bolt" size={18} className="text-blue-600" />
-                    <span>Acciones Frecuentes</span>
+                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-4">
+                    Acciones Frecuentes
                   </h3>
                   <p className="text-xs text-slate-500 mb-6 leading-relaxed">
                     Gestiona leads pendientes, envía presupuestos automatizados o personaliza el tarifario de Nefetech.
@@ -947,33 +932,24 @@ export function AdminPanel() {
                       onClick={() => setActiveTab('leads')}
                       className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Icon name="inbox" size={18} className="text-blue-600" />
-                        <span>Ver Bandeja de Leads ({leads.length})</span>
-                      </div>
-                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                      <span>Ver Bandeja de Leads ({leads.length})</span>
+                      <span className="text-slate-400">→</span>
                     </button>
 
                     <button
                       onClick={() => setActiveTab('calculadora')}
                       className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Icon name="calculate" size={18} className="text-indigo-600" />
-                        <span>Abrir Calculadora Inteligente con IA</span>
-                      </div>
-                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                      <span>Abrir Calculadora Inteligente con IA</span>
+                      <span className="text-slate-400">→</span>
                     </button>
 
                     <button
                       onClick={() => setActiveTab('configuracion')}
                       className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Icon name="settings" size={18} className="text-slate-600" />
-                        <span>Configurar Costos & Multiplicadores</span>
-                      </div>
-                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                      <span>Configurar Costos & Multiplicadores</span>
+                      <span className="text-slate-400">→</span>
                     </button>
                   </div>
                 </div>
@@ -1119,7 +1095,6 @@ export function AdminPanel() {
                         }}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors cursor-pointer"
                       >
-                        <Icon name="calculate" size={16} />
                         <span>Cotizar con IA</span>
                       </button>
 
@@ -1150,9 +1125,8 @@ export function AdminPanel() {
                 {/* Cadena de Respuestas */}
                 {leadDetail?.replies && leadDetail.replies.length > 0 && (
                   <div className="bg-white rounded-2xl p-6 shadow-xs border border-slate-200">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                      <Icon name="history_edu" size={16} className="text-blue-600" />
-                      <span>Cadena de Respuestas Enviadas ({leadDetail.replies.length})</span>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+                      Cadena de Respuestas Enviadas ({leadDetail.replies.length})
                     </h3>
                     <div className="space-y-3">
                       {leadDetail.replies.map((rep) => (
@@ -1174,9 +1148,8 @@ export function AdminPanel() {
                 {/* Formulario de Respuesta */}
                 <div className="bg-white rounded-2xl p-6 shadow-xs border border-slate-200">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                      <Icon name="send" size={16} className="text-blue-600" />
-                      <span>Responder al Cliente</span>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Responder al Cliente
                     </h3>
                     <div className="flex gap-2">
                       <button
@@ -1186,7 +1159,6 @@ export function AdminPanel() {
                           replyChannel === 'email' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'
                         }`}
                       >
-                        <Icon name="mail" size={14} />
                         <span>Email</span>
                       </button>
                       {activeLead.phone && (
@@ -1205,9 +1177,8 @@ export function AdminPanel() {
                   </div>
 
                   {replySuccessMsg && (
-                    <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-medium flex items-center gap-2">
-                      <Icon name="check_circle" size={16} className="text-emerald-600" />
-                      <span>{replySuccessMsg}</span>
+                    <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-medium">
+                      <span>✓ {replySuccessMsg}</span>
                     </div>
                   )}
 
@@ -1276,9 +1247,8 @@ export function AdminPanel() {
                       <button
                         type="submit"
                         disabled={isSendingReply || !replyMessage.trim()}
-                        className="py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                        className="py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
                       >
-                        <Icon name="send" size={14} />
                         <span>{isSendingReply ? 'Enviando...' : 'Despachar Respuesta'}</span>
                       </button>
                     </div>
@@ -1288,9 +1258,8 @@ export function AdminPanel() {
                 {/* Transcripción del Chatbot con BOTÓN AGRANDAR */}
                 <div className="bg-white rounded-2xl p-6 shadow-xs border border-slate-200">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                      <Icon name="chat" size={16} className="text-blue-600" />
-                      <span>Historial de Conversación con el Asistente</span>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Historial de Conversación con el Asistente
                     </h3>
 
                     {leadDetail?.chat_history && leadDetail.chat_history.length > 0 && (
@@ -1299,8 +1268,7 @@ export function AdminPanel() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                         title="Ver chat completo en pantalla grande"
                       >
-                        <Icon name="open_in_full" size={14} />
-                        <span>Agrandar Chat</span>
+                        <span>Agrandar Chat ↗</span>
                       </button>
                     )}
                   </div>
@@ -1377,7 +1345,6 @@ export function AdminPanel() {
                   calcMode === 'ia' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Icon name="auto_awesome" size={16} />
                 <span>Estimar con IA (Chat)</span>
               </button>
               <button
@@ -1386,7 +1353,6 @@ export function AdminPanel() {
                   calcMode === 'manual' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Icon name="tune" size={16} />
                 <span>Configuración Manual</span>
               </button>
             </div>
@@ -1394,14 +1360,9 @@ export function AdminPanel() {
             {/* MODO ASISTENTE DE IA PARA COTIZAR */}
             {calcMode === 'ia' && (
               <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-blue-100 space-y-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Icon name="smart_toy" size={18} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">Asistente de Estimación IA</h3>
-                    <p className="text-xs text-slate-500">Pega o describe la idea del cliente y la IA sugerirá horas, stack, IA y asesoría.</p>
-                  </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Asistente de Estimación IA</h3>
+                  <p className="text-xs text-slate-500">Pega o describe la idea del cliente y la IA sugerirá horas, stack, IA y asesoría.</p>
                 </div>
 
                 <form onSubmit={handleAIEstimate} className="space-y-3">
@@ -1417,9 +1378,8 @@ export function AdminPanel() {
                     <button
                       type="submit"
                       disabled={isAiEstimating || !aiPrompt.trim()}
-                      className="py-2.5 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                      className="py-2.5 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
                     >
-                      <Icon name="auto_awesome" size={16} />
                       <span>{isAiEstimating ? 'Analizando requerimiento...' : 'Analizar & Calcular con IA'}</span>
                     </button>
                   </div>
@@ -1427,8 +1387,7 @@ export function AdminPanel() {
 
                 {aiAnalysisResult && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-slate-800 leading-relaxed space-y-1">
-                    <div className="font-bold text-blue-900 flex items-center gap-1.5">
-                      <Icon name="lightbulb" size={16} className="text-amber-500" />
+                    <div className="font-bold text-blue-900">
                       <span>Diagnóstico de la IA:</span>
                     </div>
                     <p>{aiAnalysisResult}</p>
@@ -1444,8 +1403,7 @@ export function AdminPanel() {
               
               {/* Formulario de Parámetros */}
               <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 space-y-6">
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Icon name="code" size={20} className="text-blue-600" />
+                <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3">
                   <span>1. Desarrollo de Software</span>
                 </h3>
 
@@ -1583,8 +1541,7 @@ export function AdminPanel() {
                 </div>
 
                 {/* Asesoría y Consultoría */}
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
-                  <Icon name="psychology" size={20} className="text-blue-600" />
+                <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3 pt-2">
                   <span>2. Asesoría & Consultoría Tecnológica</span>
                 </h3>
 
@@ -1606,8 +1563,7 @@ export function AdminPanel() {
                 </div>
 
                 {/* Inteligencia Artificial */}
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
-                  <Icon name="smart_toy" size={20} className="text-blue-600" />
+                <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3 pt-2">
                   <span>3. Soluciones de Inteligencia Artificial (IA)</span>
                 </h3>
 
@@ -1629,8 +1585,7 @@ export function AdminPanel() {
                 </div>
 
                 {/* Diseño UI/UX */}
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
-                  <Icon name="palette" size={20} className="text-blue-600" />
+                <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3 pt-2">
                   <span>4. Diseño UI/UX</span>
                 </h3>
 
@@ -1652,8 +1607,7 @@ export function AdminPanel() {
                 </div>
 
                 {/* Infraestructura */}
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
-                  <Icon name="dns" size={20} className="text-blue-600" />
+                <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3 pt-2">
                   <span>5. Infraestructura & Servidores</span>
                 </h3>
 
@@ -1733,8 +1687,7 @@ export function AdminPanel() {
                   {/* Switch de Aplicación de IVA (21%) Factura A / B */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Icon name="receipt_long" size={16} className="text-blue-600" />
+                      <div className="text-xs font-bold text-slate-800">
                         <span>Aplicar IVA (21%) — Facturación Oficial</span>
                       </div>
                       <span className="text-[11px] text-slate-500 block mt-0.5">
@@ -1875,7 +1828,6 @@ export function AdminPanel() {
                       }}
                       className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Icon name="content_copy" size={16} />
                       <span>Copiar Resumen para el Cliente</span>
                     </button>
                   </div>
@@ -1907,15 +1859,13 @@ export function AdminPanel() {
                   onClick={handleSaveBudgetConfig}
                   className="py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <Icon name="save" size={16} />
                   <span>Guardar Cambios</span>
                 </button>
               </div>
 
               {saveConfigMsg && (
                 <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-bold flex items-center gap-2">
-                  <Icon name="check_circle" size={18} className="text-emerald-600" />
-                  <span>{saveConfigMsg}</span>
+                  <span>✓ {saveConfigMsg}</span>
                 </div>
               )}
 
@@ -1923,8 +1873,7 @@ export function AdminPanel() {
               <div className="mb-8 p-5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
-                      <Icon name="trending_up" size={18} className="text-amber-600" />
+                    <div className="text-amber-900 font-bold text-sm">
                       <span>Aplicar Aumento Porcentual Masivo</span>
                     </div>
                     <p className="text-xs text-amber-700/80 mt-1">
@@ -1950,18 +1899,16 @@ export function AdminPanel() {
                     <button
                       type="submit"
                       disabled={isApplyingIncrease}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <Icon name="bolt" size={14} />
                       <span>{isApplyingIncrease ? 'Aplicando...' : 'Aplicar Aumento'}</span>
                     </button>
                   </form>
                 </div>
 
                 {increaseSuccessMsg && (
-                  <div className="mt-3 p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg font-bold flex items-center gap-2">
-                    <Icon name="check_circle" size={16} className="text-emerald-700" />
-                    <span>{increaseSuccessMsg}</span>
+                  <div className="mt-3 p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg font-bold">
+                    <span>✓ {increaseSuccessMsg}</span>
                   </div>
                 )}
               </div>
@@ -2405,7 +2352,6 @@ export function AdminPanel() {
                       type="submit"
                       className="py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
                     >
-                      <Icon name="save" size={16} />
                       <span>Guardar Toda la Configuración</span>
                     </button>
                   </div>
@@ -2428,12 +2374,7 @@ export function AdminPanel() {
             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                      <Icon name="mark_email_read" size={18} />
-                    </div>
-                    <h2 className="text-xl font-black text-slate-900">Historial de Cotizaciones Enviadas</h2>
-                  </div>
+                  <h2 className="text-xl font-black text-slate-900">Historial de Cotizaciones Enviadas</h2>
                   <p className="text-xs text-slate-500 mt-1">
                     Registro inmutable de cotizaciones comerciales despachadas a clientes, conservando el valor exacto del momento (USD y cotización Blue).
                   </p>
@@ -2506,12 +2447,7 @@ export function AdminPanel() {
             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
-                      <Icon name="history" size={18} />
-                    </div>
-                    <h2 className="text-xl font-black text-slate-900">Historial de Cambios de Costos & Aumentos</h2>
-                  </div>
+                  <h2 className="text-xl font-black text-slate-900">Historial de Cambios de Costos & Aumentos</h2>
                   <p className="text-xs text-slate-500 mt-1">
                     Auditoría de aumentos porcentuales aplicados y ediciones de precios por hora y módulos.
                   </p>
@@ -2598,8 +2534,7 @@ export function AdminPanel() {
                             ) : (
                               <>
                                 <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                                  <div className="flex items-center gap-2">
-                                    <Icon name="tune" size={16} className="text-amber-600" />
+                                  <div>
                                     <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                       Tarifas Resultantes en este Registro
                                     </span>
@@ -2647,52 +2582,48 @@ export function AdminPanel() {
                                         <button
                                           type="button"
                                           onClick={() => setSubTab('general')}
-                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                             currentSubTab === 'general'
                                               ? 'bg-white text-slate-900 shadow-xs'
                                               : 'text-slate-600 hover:text-slate-900'
                                           }`}
                                         >
-                                          <Icon name="tune" size={14} className={currentSubTab === 'general' ? 'text-blue-600' : 'text-slate-400'} />
                                           <span>Tarifa Base & Servidores</span>
                                         </button>
 
                                         <button
                                           type="button"
                                           onClick={() => setSubTab('lenguajes')}
-                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                             currentSubTab === 'lenguajes'
                                               ? 'bg-white text-slate-900 shadow-xs'
                                               : 'text-slate-600 hover:text-slate-900'
                                           }`}
                                         >
-                                          <Icon name="code" size={14} className={currentSubTab === 'lenguajes' ? 'text-blue-600' : 'text-slate-400'} />
                                           <span>Lenguajes & Frameworks ({((snapshot.frontend_techs?.length || 0) + (snapshot.backend_techs?.length || 0))})</span>
                                         </button>
 
                                         <button
                                           type="button"
                                           onClick={() => setSubTab('combos')}
-                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                             currentSubTab === 'combos'
                                               ? 'bg-white text-slate-900 shadow-xs'
                                               : 'text-slate-600 hover:text-slate-900'
                                           }`}
                                         >
-                                          <Icon name="layers" size={14} className={currentSubTab === 'combos' ? 'text-indigo-600' : 'text-slate-400'} />
                                           <span>Combos de Stack ({snapshot.stack_combos?.length || 0})</span>
                                         </button>
 
                                         <button
                                           type="button"
                                           onClick={() => setSubTab('ia_asesoria')}
-                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                             currentSubTab === 'ia_asesoria'
                                               ? 'bg-white text-slate-900 shadow-xs'
                                               : 'text-slate-600 hover:text-slate-900'
                                           }`}
                                         >
-                                          <Icon name="smart_toy" size={14} className={currentSubTab === 'ia_asesoria' ? 'text-purple-600' : 'text-slate-400'} />
                                           <span>IA & Asesoría ({((snapshot.ia_modules?.length || 0) + (snapshot.consultoria_modules?.length || 0))})</span>
                                         </button>
                                       </div>
@@ -2755,8 +2686,7 @@ export function AdminPanel() {
                                           {/* Frontend */}
                                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                                             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Icon name="code" size={16} className="text-blue-600" />
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                                 <span>Tecnologías Frontend</span>
                                               </h4>
                                               <span className="text-[10px] text-slate-400 font-bold uppercase">USD / Hora</span>
@@ -2778,8 +2708,7 @@ export function AdminPanel() {
                                           {/* Backend */}
                                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                                             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Icon name="terminal" size={16} className="text-indigo-600" />
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                                 <span>Tecnologías Backend</span>
                                               </h4>
                                               <span className="text-[10px] text-slate-400 font-bold uppercase">USD / Hora</span>
@@ -2839,8 +2768,7 @@ export function AdminPanel() {
                                           {/* Módulos de IA */}
                                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                                             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Icon name="smart_toy" size={16} className="text-purple-600" />
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                                 <span>Inteligencia Artificial</span>
                                               </h4>
                                               <span className="text-[10px] text-slate-400 font-bold uppercase">Costo Fijo USD</span>
@@ -2859,8 +2787,7 @@ export function AdminPanel() {
                                           {/* Asesoría y Consultoría */}
                                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                                             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Icon name="psychology" size={16} className="text-amber-600" />
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                                 <span>Asesoría Tecnológica</span>
                                               </h4>
                                               <span className="text-[10px] text-slate-400 font-bold uppercase">Costo Fijo USD</span>

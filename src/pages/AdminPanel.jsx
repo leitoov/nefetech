@@ -91,11 +91,40 @@ export function AdminPanel() {
   const [calcSelectedIA, setCalcSelectedIA] = useState('RAG Semántico con Base Vectorial');
   const [calcSelectedAsesoria, setCalcSelectedAsesoria] = useState('Diagnóstico Inicial de Procesos y Arquitectura');
   const [calcIncludeDomain, setCalcIncludeDomain] = useState(true);
-  const [calcServerType, setCalcServerType] = useState('server_basic_monthly_usd');
+  const [calcServerType, setCalcServerType] = useState('none'); // 'none' permite no seleccionar servidor
   const [calcServerMonths, setCalcServerMonths] = useState(12);
   const [calcSelectedDesign, setCalcSelectedDesign] = useState('UI Kit Moderno & Responsive (Tailwind)');
   const [calcMarginPercent, setCalcMarginPercent] = useState(15);
   const [calcApplyIva, setCalcApplyIva] = useState(false); // Switch IVA 21% (Factura A / B)
+
+  // Campañas de Descuento
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState('none');
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+  const [campaignSuccessMsg, setCampaignSuccessMsg] = useState('');
+  const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState('');
+  const [newCampaignScope, setNewCampaignScope] = useState('all'); // 'all', 'desarrollo', 'ia', 'asesoria', 'servidores', 'diseno'
+  const [newCampaignDiscountType, setNewCampaignDiscountType] = useState('percentage'); // 'percentage', 'fixed_usd'
+  const [newCampaignDiscountValue, setNewCampaignDiscountValue] = useState(15);
+  const [newCampaignStart, setNewCampaignStart] = useState(() => new Date().toISOString().slice(0, 16));
+  const [newCampaignEnd, setNewCampaignEnd] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 16);
+  });
+  const [newCampaignClient, setNewCampaignClient] = useState('all'); // 'all' o ID/Email específico
+  const [newCampaignActive, setNewCampaignActive] = useState(true);
+
+  // Modal: Enviar Cotización a Cliente Seleccionado
+  const [showSendQuoteModal, setShowSendQuoteModal] = useState(false);
+  const [selectedQuoteLeadId, setSelectedQuoteLeadId] = useState('');
+  const [quoteRecipientName, setQuoteRecipientName] = useState('');
+  const [quoteRecipientContact, setQuoteRecipientContact] = useState('');
+  const [quoteSendChannel, setQuoteSendChannel] = useState('email');
+  const [quoteCustomMessage, setQuoteCustomMessage] = useState('');
+  const [isSendingQuote, setIsSendingQuote] = useState(false);
+  const [quoteSentSuccessMsg, setQuoteSentSuccessMsg] = useState('');
 
   // Manejo de Login
   const handleLogin = async (e) => {
@@ -213,6 +242,9 @@ export function AdminPanel() {
         }
         if (data.configs?.chat_max_messages) {
           setChatMaxMessagesInput(Number(data.configs.chat_max_messages));
+        }
+        if (data.campaigns) {
+          setCampaigns(data.campaigns);
         }
       }
     } catch (e) {
@@ -553,6 +585,343 @@ export function AdminPanel() {
     }
   };
 
+  // -------------------------------------------------------------
+  // GESTIÓN DE CAMPAÑAS DE DESCUENTO
+  // -------------------------------------------------------------
+  const handleCreateCampaign = async (e) => {
+    e.preventDefault();
+    if (!newCampaignName.trim()) {
+      alert('Por favor ingresa un nombre para la campaña.');
+      return;
+    }
+
+    setIsCreatingCampaign(true);
+    setCampaignSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'create_campaign',
+          campaign: {
+            name: newCampaignName.trim(),
+            target_scope: newCampaignScope,
+            discount_type: newCampaignDiscountType,
+            discount_value: Number(newCampaignDiscountValue) || 0,
+            start_datetime: newCampaignStart.replace('T', ' ') + ':00',
+            end_datetime: newCampaignEnd.replace('T', ' ') + ':00',
+            target_client: newCampaignClient,
+            is_active: newCampaignActive ? 1 : 0
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCampaigns(data.campaigns || []);
+        setShowNewCampaignModal(false);
+        setNewCampaignName('');
+        setCampaignSuccessMsg('¡Campaña de descuento guardada con éxito!');
+        setTimeout(() => setCampaignSuccessMsg(''), 4000);
+      } else {
+        alert(data.error || 'Error al crear la campaña');
+      }
+    } catch {
+      alert('Error de conexión al crear campaña');
+    } finally {
+      setIsCreatingCampaign(false);
+    }
+  };
+
+  const handleToggleCampaign = async (campaignId, currentActive) => {
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'toggle_campaign',
+          campaign_id: campaignId,
+          is_active: !currentActive
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCampaigns(data.campaigns || []);
+      }
+    } catch {
+      alert('Error al alternar estado de la campaña');
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId) => {
+    if (!window.confirm('¿Deseas eliminar esta campaña de descuento?')) return;
+    try {
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'delete_campaign',
+          campaign_id: campaignId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCampaigns(data.campaigns || []);
+        if (selectedCampaignId === String(campaignId)) {
+          setSelectedCampaignId('none');
+        }
+      }
+    } catch {
+      alert('Error al eliminar campaña');
+    }
+  };
+
+  // -------------------------------------------------------------
+  // GENERAR PDF DE COTIZACIÓN PROFESIONAL
+  // -------------------------------------------------------------
+  const handleGeneratePDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes (popups) para generar el PDF.');
+      return;
+    }
+
+    const items = [];
+    if (costDevelopmentUSD > 0) {
+      items.push({
+        concept: `Desarrollo de Software (${calcHours}h x $${stackRatePerHourUSD} USD/h)`,
+        detail: stackDescription,
+        usd: costDevelopmentUSD
+      });
+    }
+    if (costAsesoriaUSD > 0) {
+      items.push({
+        concept: 'Asesoría / Consultoría Tecnológica',
+        detail: calcSelectedAsesoria,
+        usd: costAsesoriaUSD
+      });
+    }
+    if (costIaUSD > 0) {
+      items.push({
+        concept: 'Módulo de Inteligencia Artificial',
+        detail: calcSelectedIA,
+        usd: costIaUSD
+      });
+    }
+    if (costDesignUSD > 0) {
+      items.push({
+        concept: 'Diseño de Interfaz UI/UX',
+        detail: calcSelectedDesign,
+        usd: costDesignUSD
+      });
+    }
+    if ((costServerUSD + costDomainUSD) > 0) {
+      const infraDetail = [
+        calcServerType !== 'none' ? `Servidor (${calcServerMonths}m)` : null,
+        calcIncludeDomain ? 'Dominio Anual' : null
+      ].filter(Boolean).join(' + ');
+
+      items.push({
+        concept: 'Infraestructura & Servidores',
+        detail: infraDetail,
+        usd: costServerUSD + costDomainUSD
+      });
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Presupuesto Oficial - Nefetech</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 40px; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+          .logo { font-size: 26px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+          .logo span { color: #2563eb; }
+          .badge { background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 99px; text-transform: uppercase; }
+          .meta { font-size: 12px; color: #64748b; line-height: 1.6; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          th { background: #f8fafc; text-align: left; padding: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; border-bottom: 1px solid #e2e8f0; }
+          td { padding: 14px 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+          .right { text-align: right; }
+          .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+          .totals-table { width: 340px; margin-left: auto; margin-bottom: 30px; }
+          .totals-table td { padding: 8px 12px; font-size: 13px; }
+          .total-box { background: #0f172a; color: white; padding: 20px; border-radius: 16px; margin-top: 20px; text-align: right; }
+          .total-box .title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 4px; }
+          .total-box .val-usd { font-size: 28px; font-weight: 900; color: #34d399; font-family: monospace; }
+          .total-box .val-ars { font-size: 14px; color: #cbd5e1; margin-top: 4px; }
+          .footer { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px; }
+          @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="logo">Nefe<span>tech</span></div>
+            <div class="meta" style="margin-top: 4px;">Soluciones Tecnológicas & Inteligencia Artificial</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="badge">Propuesta Comercial</div>
+            <div class="meta" style="margin-top: 6px;">Fecha: ${new Date().toLocaleDateString('es-AR')}</div>
+            <div class="meta">Validez: 15 días corridos</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Concepto / Módulo</th>
+              <th>Especificación Técnica</th>
+              <th class="right">Subtotal USD</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(it => `
+              <tr>
+                <td style="font-weight: 700; color: #0f172a;">${it.concept}</td>
+                <td style="color: #64748b; font-size: 12px;">${it.detail}</td>
+                <td class="right mono" style="font-weight: 700;">$${it.usd.toLocaleString()} USD</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <table class="totals-table">
+          <tr>
+            <td style="color: #64748b;">Subtotal Directo:</td>
+            <td class="right mono" style="font-weight: 600;">$${subtotalUSD.toLocaleString()} USD</td>
+          </tr>
+          ${marginUSD > 0 ? `
+          <tr>
+            <td style="color: #2563eb;">Margen Comercial (${calcMarginPercent}%):</td>
+            <td class="right mono" style="color: #2563eb; font-weight: 600;">+$${marginUSD.toLocaleString()} USD</td>
+          </tr>` : ''}
+          ${discountUSD > 0 ? `
+          <tr>
+            <td style="color: #059669; font-weight: 700;">Descuento Campaña (${campaignDiscountLabel}):</td>
+            <td class="right mono" style="color: #059669; font-weight: 700;">-$${discountUSD.toLocaleString()} USD</td>
+          </tr>` : ''}
+          ${calcApplyIva ? `
+          <tr>
+            <td style="color: #4f46e5; font-weight: 600;">IVA (21%):</td>
+            <td class="right mono" style="color: #4f46e5; font-weight: 600;">+$${ivaUSD.toFixed(2)} USD</td>
+          </tr>` : ''}
+        </table>
+
+        <div class="total-box">
+          <div class="title">Inversión Final Estimada</div>
+          <div class="val-usd">$${totalUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>
+          <div class="val-ars">Equivalente aprox: $${totalARS.toLocaleString('es-AR', { maximumFractionDigits: 0 })} ARS (Cotización Dólar Blue: $${blueRate})</div>
+        </div>
+
+        <div class="footer">
+          Nefetech • comercial@nefetech.online • WhatsApp: +54 9 11 7060-5129 • https://nefetech.online<br>
+          Este documento es una cotización técnica preliminar no contractual. Sujeto a firma de alcance de proyecto.
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // -------------------------------------------------------------
+  // REGISTRAR / ENVIAR COTIZACIÓN A CLIENTE SELECCIONADO
+  // -------------------------------------------------------------
+  const handleSendQuotationToClient = async (e) => {
+    e.preventDefault();
+    if (!quoteRecipientContact.trim()) {
+      alert('Por favor ingresa el correo o número de contacto del cliente.');
+      return;
+    }
+
+    setIsSendingQuote(true);
+    setQuoteSentSuccessMsg('');
+
+    try {
+      const summaryText = `Propuesta Nefetech: ${calcHours}h en ${stackDescription}. Inversión: $${totalUSD.toFixed(0)} USD (aprox $${totalARS.toLocaleString('es-AR')} ARS cotización $${blueRate}). ${quoteCustomMessage}`;
+
+      const res = await fetch('/api/admin/budget_config.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'send_quotation_to_client',
+          quotation: {
+            lead_id: selectedQuoteLeadId ? Number(selectedQuoteLeadId) : null,
+            client_name: quoteRecipientName.trim() || 'Cliente Nefetech',
+            client_recipient: quoteRecipientContact.trim(),
+            channel: quoteSendChannel,
+            subject: `Presupuesto de Proyecto - Nefetech`,
+            hours: calcHours,
+            hourly_rate_usd: stackRatePerHourUSD,
+            stack_description: stackDescription,
+            asesoria_module: costAsesoriaUSD > 0 ? calcSelectedAsesoria : null,
+            asesoria_cost_usd: costAsesoriaUSD,
+            ia_module: costIaUSD > 0 ? calcSelectedIA : null,
+            ia_cost_usd: costIaUSD,
+            design_level: costDesignUSD > 0 ? calcSelectedDesign : null,
+            design_cost_usd: costDesignUSD,
+            server_type: calcServerType !== 'none' ? calcServerType : null,
+            server_months: calcServerType !== 'none' ? calcServerMonths : 0,
+            server_cost_usd: costServerUSD,
+            domain_included: calcIncludeDomain ? 1 : 0,
+            domain_cost_usd: costDomainUSD,
+            margin_percent: calcMarginPercent,
+            total_usd: totalUSD,
+            dolar_blue_rate: blueRate,
+            total_ars: totalARS,
+            full_summary: summaryText
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        if (data.sent_quotations) {
+          setSentQuotations(data.sent_quotations);
+        }
+        setQuoteSentSuccessMsg('¡Cotización guardada y asignada al cliente con éxito!');
+        setTimeout(() => {
+          setShowSendQuoteModal(false);
+          setQuoteSentSuccessMsg('');
+        }, 2000);
+      } else {
+        alert(data.error || 'Error al registrar la cotización');
+      }
+    } catch {
+      alert('Error de conexión al enviar cotización');
+    } finally {
+      setIsSendingQuote(false);
+    }
+  };
+
   // Cálculos matemáticos de la Calculadora con soporte de Combos y Stack Individual por Precio/Hora
   let stackRatePerHourUSD = Number(budgetConfig?.hourly_rate) || 35;
   let stackDescription = '';
@@ -581,7 +950,7 @@ export function AdminPanel() {
   const costAsesoriaUSD = selectedAsesoriaObj ? Number(selectedAsesoriaObj.cost_usd) : 0;
 
   const costDomainUSD = calcIncludeDomain ? Number(budgetConfig?.infrastructure?.domain_annual_usd || 18) : 0;
-  const serverMonthlyRate = Number(budgetConfig?.infrastructure?.[calcServerType] || 0);
+  const serverMonthlyRate = calcServerType !== 'none' ? Number(budgetConfig?.infrastructure?.[calcServerType] || 0) : 0;
   const costServerUSD = serverMonthlyRate * calcServerMonths;
 
   const selectedDesignObj = budgetConfig?.design_levels?.find(d => d.name === calcSelectedDesign);
@@ -589,7 +958,43 @@ export function AdminPanel() {
 
   const subtotalUSD = costDevelopmentUSD + costIaUSD + costAsesoriaUSD + costDomainUSD + costServerUSD + costDesignUSD;
   const marginUSD = (subtotalUSD * (calcMarginPercent / 100));
-  const netUSD = subtotalUSD + marginUSD;
+  const preDiscountUSD = subtotalUSD + marginUSD;
+
+  // Lógica de Descuento de Campaña
+  const activeCampaignObj = campaigns.find(c => String(c.id) === String(selectedCampaignId));
+  let discountUSD = 0;
+  let campaignDiscountLabel = '';
+
+  if (activeCampaignObj && Number(activeCampaignObj.is_active) === 1) {
+    let applicableBase = 0;
+    const scope = activeCampaignObj.target_scope || 'all';
+
+    if (scope === 'all') {
+      applicableBase = preDiscountUSD;
+    } else if (scope === 'desarrollo') {
+      applicableBase = costDevelopmentUSD;
+    } else if (scope === 'ia') {
+      applicableBase = costIaUSD;
+    } else if (scope === 'asesoria') {
+      applicableBase = costAsesoriaUSD;
+    } else if (scope === 'servidores') {
+      applicableBase = costServerUSD + costDomainUSD;
+    } else if (scope === 'diseno') {
+      applicableBase = costDesignUSD;
+    }
+
+    if (activeCampaignObj.discount_type === 'percentage') {
+      const pct = Number(activeCampaignObj.discount_value) || 0;
+      discountUSD = Math.round((applicableBase * (pct / 100)) * 100) / 100;
+      campaignDiscountLabel = `${activeCampaignObj.name} (-${pct}%)`;
+    } else {
+      const val = Number(activeCampaignObj.discount_value) || 0;
+      discountUSD = Math.min(applicableBase, val);
+      campaignDiscountLabel = `${activeCampaignObj.name} (-$${val} USD)`;
+    }
+  }
+
+  const netUSD = Math.max(0, preDiscountUSD - discountUSD);
   const ivaUSD = calcApplyIva ? (netUSD * 0.21) : 0;
   const totalUSD = netUSD + ivaUSD;
 
@@ -933,6 +1338,27 @@ export function AdminPanel() {
               }`}>
                 {chatPrompts.length || 1}
               </span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('campanas'); setIsMobileMenuOpen(false); }}
+              className={`w-full px-3.5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between group ${
+                activeTab === 'campanas'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="campaign" size={18} className={activeTab === 'campanas' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} />
+                <span className="text-xs">Campañas de Descuento</span>
+              </div>
+              {campaigns.length > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'campanas' ? 'bg-white text-blue-600' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {campaigns.length}
+                </span>
+              )}
             </button>
           </nav>
 
@@ -1818,6 +2244,9 @@ export function AdminPanel() {
                         onChange={(e) => setCalcServerType(e.target.value)}
                         className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
                       >
+                        <option value="none">
+                          -- Sin servidor / Lo aporta el cliente ($0) --
+                        </option>
                         <option value="server_basic_monthly_usd">
                           Hosting Compartido (+${budgetConfig?.infrastructure?.server_basic_monthly_usd || 15}/mes)
                         </option>
@@ -1838,11 +2267,31 @@ export function AdminPanel() {
                         type="number"
                         min="1"
                         max="36"
+                        disabled={calcServerType === 'none'}
                         value={calcServerMonths}
                         onChange={(e) => setCalcServerMonths(Math.max(1, Number(e.target.value)))}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
                       />
                     </div>
+                  </div>
+
+                  {/* Campaña de Descuento Promocional */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Aplicar Campaña de Descuento:
+                    </label>
+                    <select
+                      value={selectedCampaignId}
+                      onChange={(e) => setSelectedCampaignId(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                    >
+                      <option value="none">-- Sin campaña / Precio regular --</option>
+                      {campaigns.filter(c => Number(c.is_active) === 1).map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.discount_type === 'percentage' ? `-${c.discount_value}%` : `-$${c.discount_value} USD`} en {c.target_scope === 'all' ? 'todo' : c.target_scope})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -1908,59 +2357,106 @@ export function AdminPanel() {
 
                     <table className="w-full text-xs border-collapse mb-6">
                       <tbody>
-                        <tr className="border-b border-slate-100">
-                          <td className="py-2.5 text-slate-600 font-medium">
-                            <div>Desarrollo ({calcHours}h x ${stackRatePerHourUSD} USD/h):</div>
-                            <div className="text-[10px] text-blue-600 font-semibold">{stackDescription}</div>
-                          </td>
-                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
-                            ${costDevelopmentUSD.toLocaleString()} USD
-                          </td>
-                        </tr>
-                        <tr className="border-b border-slate-100">
-                          <td className="py-2.5 text-slate-600 font-medium">Asesoría / Consultoría:</td>
-                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
-                            ${costAsesoriaUSD.toLocaleString()} USD
-                          </td>
-                        </tr>
-                        <tr className="border-b border-slate-100">
-                          <td className="py-2.5 text-slate-600 font-medium">Módulo de IA:</td>
-                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
-                            ${costIaUSD.toLocaleString()} USD
-                          </td>
-                        </tr>
-                        <tr className="border-b border-slate-100">
-                          <td className="py-2.5 text-slate-600 font-medium">Diseño UI/UX:</td>
-                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
-                            ${costDesignUSD.toLocaleString()} USD
-                          </td>
-                        </tr>
-                        <tr className="border-b border-slate-100">
-                          <td className="py-2.5 text-slate-600 font-medium">
-                            Hosting ({calcServerMonths}m) + Dominio:
-                          </td>
-                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
-                            ${(costServerUSD + costDomainUSD).toLocaleString()} USD
-                          </td>
-                        </tr>
+                        {costDevelopmentUSD > 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-2.5 text-slate-600 font-medium">
+                              <div>Desarrollo ({calcHours}h x ${stackRatePerHourUSD} USD/h):</div>
+                              <div className="text-[10px] text-blue-600 font-semibold">{stackDescription}</div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                              ${costDevelopmentUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
+                        {costAsesoriaUSD > 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-2.5 text-slate-600 font-medium">
+                              <div>Asesoría / Consultoría:</div>
+                              <div className="text-[10px] text-slate-400">{calcSelectedAsesoria}</div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                              ${costAsesoriaUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
+                        {costIaUSD > 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-2.5 text-slate-600 font-medium">
+                              <div>Módulo de IA:</div>
+                              <div className="text-[10px] text-slate-400">{calcSelectedIA}</div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                              ${costIaUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
+                        {costDesignUSD > 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-2.5 text-slate-600 font-medium">
+                              <div>Diseño UI/UX:</div>
+                              <div className="text-[10px] text-slate-400">{calcSelectedDesign}</div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                              ${costDesignUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
+                        {(costServerUSD + costDomainUSD) > 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-2.5 text-slate-600 font-medium">
+                              <div>Infraestructura & Servidores:</div>
+                              <div className="text-[10px] text-slate-400">
+                                {[
+                                  calcServerType !== 'none' ? `Hosting (${calcServerMonths}m)` : null,
+                                  calcIncludeDomain ? 'Dominio Anual' : null
+                                ].filter(Boolean).join(' + ')}
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                              ${(costServerUSD + costDomainUSD).toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
                         <tr className="border-b border-slate-100 text-slate-500">
                           <td className="py-2.5">Subtotal Costos Directos:</td>
                           <td className="py-2.5 text-right font-mono font-semibold">
                             ${subtotalUSD.toLocaleString()} USD
                           </td>
                         </tr>
-                        <tr className="border-b border-slate-100 text-blue-600 font-semibold">
-                          <td className="py-2.5">Margen Comercial ({calcMarginPercent}%):</td>
-                          <td className="py-2.5 text-right font-mono">
-                            +${marginUSD.toLocaleString()} USD
-                          </td>
-                        </tr>
+
+                        {marginUSD > 0 && (
+                          <tr className="border-b border-slate-100 text-blue-600 font-semibold">
+                            <td className="py-2.5">Margen Comercial ({calcMarginPercent}%):</td>
+                            <td className="py-2.5 text-right font-mono">
+                              +${marginUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
+                        {discountUSD > 0 && (
+                          <tr className="border-b border-slate-100 text-emerald-700 font-bold bg-emerald-50/60">
+                            <td className="py-2.5 px-2">
+                              <div>Descuento de Campaña:</div>
+                              <div className="text-[10px] text-emerald-600">{campaignDiscountLabel}</div>
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-mono">
+                              -${discountUSD.toLocaleString()} USD
+                            </td>
+                          </tr>
+                        )}
+
                         <tr className="border-b border-slate-200 text-slate-800 font-bold">
                           <td className="py-2.5">Subtotal Neto:</td>
                           <td className="py-2.5 text-right font-mono">
                             ${netUSD.toLocaleString()} USD
                           </td>
                         </tr>
+
                         {calcApplyIva && (
                           <tr className="border-b border-slate-200 text-indigo-700 font-bold bg-indigo-50/50">
                             <td className="py-2.5 px-2">IVA (21%):</td>
@@ -2000,16 +2496,30 @@ export function AdminPanel() {
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-5 border-t border-slate-100 space-y-2">
+                  <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col gap-2.5">
                     <button
-                      onClick={() => {
-                        const copyText = `Propuesta estimada Nefetech: ${calcHours} horas de desarrollo en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: ${calcApplyIva ? `Subtotal Neto: $${netUSD.toFixed(0)} USD + IVA (21%): $${ivaUSD.toFixed(0)} USD = Total Final: $${totalUSD.toFixed(0)} USD` : `Total: $${totalUSD.toFixed(0)} USD`} (aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización dólar blue $${blueRate}).`;
-                        navigator.clipboard.writeText(copyText);
-                        alert('¡Resumen de presupuesto copiado al portapapeles!');
-                      }}
-                      className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      type="button"
+                      onClick={handleGeneratePDF}
+                      className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
                     >
-                      <span>Copiar Resumen para el Cliente</span>
+                      <Icon name="picture_as_pdf" size={16} />
+                      <span>Generar PDF</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedQuoteLeadId('');
+                        setQuoteRecipientName('');
+                        setQuoteRecipientContact('');
+                        setQuoteSendChannel('email');
+                        setQuoteCustomMessage('');
+                        setShowSendQuoteModal(true);
+                      }}
+                      className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-500/20"
+                    >
+                      <Icon name="send" size={16} />
+                      <span>Enviar a un Cliente</span>
                     </button>
                   </div>
                 </div>
@@ -3371,6 +3881,484 @@ export function AdminPanel() {
               </div>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* PESTAÑA 6: GESTIÓN DE CAMPAÑAS DE DESCUENTO              */}
+      {/* ========================================================= */}
+      {activeTab === 'campanas' && (
+        <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto space-y-6">
+
+            {/* Cabecera */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                  Estrategia Comercial & Promociones
+                </span>
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-2">
+                  Campañas de Descuento
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                  Crea y programa promociones porcentuales o de monto fijo en USD sobre todo el catálogo o categorías específicas (Desarrollo, IA, Asesoría, Servidores o Diseño), asignándolas a un cliente específico o a todos los clientes dentro de un rango de fechas y horas.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCampaignName('');
+                  setNewCampaignScope('all');
+                  setNewCampaignDiscountType('percentage');
+                  setNewCampaignDiscountValue(15);
+                  setNewCampaignClient('all');
+                  setNewCampaignActive(true);
+                  setShowNewCampaignModal(true);
+                }}
+                className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-2 self-start md:self-auto shrink-0"
+              >
+                <span>+ Nueva Campaña de Descuento</span>
+              </button>
+            </div>
+
+            {campaignSuccessMsg && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold animate-in fade-in">
+                {campaignSuccessMsg}
+              </div>
+            )}
+
+            {/* Listado de Campañas */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Campañas Registradas ({campaigns.length})
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Las campañas activas se pueden seleccionar inmediatamente desde la Calculadora de Presupuestos.
+                  </p>
+                </div>
+              </div>
+
+              {campaigns.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 text-sm">
+                  No hay campañas de descuento creadas aún. Haz clic en "+ Nueva Campaña de Descuento" para configurar una.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {campaigns.map((camp) => {
+                    const isActive = Number(camp.is_active) === 1;
+                    const scopeLabels = {
+                      all: 'Todo el Catálogo',
+                      desarrollo: 'Solo Desarrollo de Software',
+                      ia: 'Solo Módulos de IA',
+                      asesoria: 'Solo Asesoría Tecnológica',
+                      servidores: 'Solo Infraestructura & Servidores',
+                      diseno: 'Solo Diseño UI/UX'
+                    };
+
+                    return (
+                      <div
+                        key={camp.id}
+                        className={`p-5 rounded-2xl border transition-all ${
+                          isActive
+                            ? 'bg-white border-slate-200 shadow-xs'
+                            : 'bg-slate-50/70 border-slate-200 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-extrabold text-sm text-slate-900">
+                                {camp.name}
+                              </h4>
+                              {isActive ? (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                  Vigente
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
+                                  Pausada
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-blue-600 font-bold uppercase tracking-wider block mt-1">
+                              {scopeLabels[camp.target_scope] || camp.target_scope}
+                            </span>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="text-lg font-black font-mono text-emerald-600 block">
+                              {camp.discount_type === 'percentage'
+                                ? `-${camp.discount_value}%`
+                                : `-$${Number(camp.discount_value).toLocaleString()} USD`}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-semibold">
+                              {camp.discount_type === 'percentage' ? 'Porcentual' : 'Monto Fijo USD'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 p-3 rounded-xl space-y-1.5 text-xs text-slate-600 mb-4 border border-slate-100">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Desde:</span>
+                            <span className="font-semibold">{camp.start_datetime}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Hasta:</span>
+                            <span className="font-semibold">{camp.end_datetime}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Destinatario:</span>
+                            <span className="font-semibold text-slate-800">
+                              {camp.target_client === 'all' ? 'Todos los clientes' : `Cliente: ${camp.target_client}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCampaign(camp.id, isActive)}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-amber-100 hover:bg-amber-200 text-amber-800'
+                                : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                            }`}
+                          >
+                            {isActive ? 'Pausar Campaña' : 'Reanudar Campaña'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCampaign(camp.id)}
+                            className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: CREAR NUEVA CAMPAÑA DE DESCUENTO                   */}
+      {/* ========================================================= */}
+      {showNewCampaignModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div>
+                <h3 className="font-extrabold text-base text-white">
+                  Crear Campaña de Descuento
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Configura descuentos porcentuales o de monto fijo con fechas y alcance.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewCampaignModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCampaign} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Nombre de la Campaña:
+                </label>
+                <input
+                  type="text"
+                  value={newCampaignName}
+                  onChange={(e) => setNewCampaignName(e.target.value)}
+                  placeholder="Ej: Promo Lanzamiento IA - 20% OFF"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Alcance de la Campaña:
+                  </label>
+                  <select
+                    value={newCampaignScope}
+                    onChange={(e) => setNewCampaignScope(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">Todo el Catálogo Completo</option>
+                    <option value="desarrollo">Solo Desarrollo de Software</option>
+                    <option value="ia">Solo Módulos de Inteligencia Artificial</option>
+                    <option value="asesoria">Solo Asesoría Tecnológica</option>
+                    <option value="servidores">Solo Infraestructura & Servidores</option>
+                    <option value="diseno">Solo Diseño UI/UX</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Tipo de Descuento:
+                  </label>
+                  <select
+                    value={newCampaignDiscountType}
+                    onChange={(e) => setNewCampaignDiscountType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="percentage">Porcentaje (%)</option>
+                    <option value="fixed_usd">Monto Fijo en USD ($)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Valor del Descuento ({newCampaignDiscountType === 'percentage' ? '%' : 'USD'}):
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={newCampaignDiscountType === 'percentage' ? 100 : 50000}
+                  step={newCampaignDiscountType === 'percentage' ? 1 : 5}
+                  value={newCampaignDiscountValue}
+                  onChange={(e) => setNewCampaignDiscountValue(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Fecha y Hora de Inicio:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newCampaignStart}
+                    onChange={(e) => setNewCampaignStart(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Fecha y Hora de Fin:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newCampaignEnd}
+                    onChange={(e) => setNewCampaignEnd(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Destinatario / Clientes a los que aplica:
+                </label>
+                <select
+                  value={newCampaignClient}
+                  onChange={(e) => setNewCampaignClient(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="all">A todos los clientes (Público General)</option>
+                  {leads.map((l) => (
+                    <option key={l.id} value={l.email || l.phone || `Lead #${l.id}`}>
+                      Lead #{l.id} - {l.email || l.phone || 'Sin contacto'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowNewCampaignModal(false)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingCampaign}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isCreatingCampaign ? 'Guardando...' : 'Crear Campaña'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ENVIAR COTIZACIÓN A CLIENTE SELECCIONADO           */}
+      {/* ========================================================= */}
+      {showSendQuoteModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div>
+                <h3 className="font-extrabold text-base text-white">
+                  Enviar Presupuesto a Cliente
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Selecciona el cliente de la lista de leads o escribe un contacto nuevo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSendQuoteModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendQuotationToClient} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Selección de Lead existente */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Vincular con Lead Registrado (Opcional):
+                </label>
+                <select
+                  value={selectedQuoteLeadId}
+                  onChange={(e) => {
+                    const leadId = e.target.value;
+                    setSelectedQuoteLeadId(leadId);
+                    if (leadId) {
+                      const matched = leads.find(l => String(l.id) === String(leadId));
+                      if (matched) {
+                        setQuoteRecipientContact(matched.email || matched.phone || '');
+                        setQuoteRecipientName(`Cliente Lead #${matched.id}`);
+                        if (matched.phone && !matched.email) setQuoteSendChannel('whatsapp');
+                        else setQuoteSendChannel('email');
+                      }
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">-- Ingresar cliente nuevo manualmente --</option>
+                  {leads.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      Lead #{l.id} • {l.email || l.phone || 'Sin contacto directo'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Nombre del Cliente:
+                </label>
+                <input
+                  type="text"
+                  value={quoteRecipientName}
+                  onChange={(e) => setQuoteRecipientName(e.target.value)}
+                  placeholder="Ej: Juan Pérez / Empresa XYZ"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Canal de Envío:
+                  </label>
+                  <select
+                    value={quoteSendChannel}
+                    onChange={(e) => setQuoteSendChannel(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="email">Correo Electrónico</option>
+                    <option value="whatsapp">WhatsApp</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Destinatario ({quoteSendChannel === 'email' ? 'Email' : 'WhatsApp'}):
+                  </label>
+                  <input
+                    type="text"
+                    value={quoteRecipientContact}
+                    onChange={(e) => setQuoteRecipientContact(e.target.value)}
+                    placeholder={quoteSendChannel === 'email' ? 'cliente@empresa.com' : '+54 9 11 1234-5678'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Resumen de Monto a Enviar */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-1 text-xs">
+                <div className="flex justify-between font-bold text-slate-800">
+                  <span>Monto Total a Cotizar:</span>
+                  <span className="font-mono text-emerald-600 text-sm">${totalUSD.toLocaleString()} USD</span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>Equivalente en Pesos:</span>
+                  <span className="font-mono">${totalARS.toLocaleString('es-AR')} ARS (Blue ${blueRate})</span>
+                </div>
+                {discountUSD > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-semibold pt-1 border-t border-slate-200">
+                    <span>Descuento Aplicado:</span>
+                    <span className="font-mono">-${discountUSD} USD ({campaignDiscountLabel})</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Nota / Mensaje adicional para el cliente (Opcional):
+                </label>
+                <textarea
+                  rows="3"
+                  value={quoteCustomMessage}
+                  onChange={(e) => setQuoteCustomMessage(e.target.value)}
+                  placeholder="Ej: Te adjuntamos la propuesta técnica y comercial con validez por 15 días..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                ></textarea>
+              </div>
+
+              {quoteSentSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                  {quoteSentSuccessMsg}
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSendQuoteModal(false)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingQuote}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingQuote ? 'Registrando...' : 'Registrar y Enviar'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -80,6 +80,20 @@ class ChatDB {
                     created_by TEXT DEFAULT 'admin',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS discount_campaigns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    target_scope TEXT DEFAULT 'all',
+                    discount_type TEXT DEFAULT 'percentage',
+                    discount_value REAL NOT NULL,
+                    start_datetime DATETIME NOT NULL,
+                    end_datetime DATETIME NOT NULL,
+                    target_client TEXT DEFAULT 'all',
+                    is_active INTEGER DEFAULT 1,
+                    created_by TEXT DEFAULT 'admin',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
             ");
         } else {
             // MySQL
@@ -186,6 +200,23 @@ class ChatDB {
                     created_by VARCHAR(100) DEFAULT 'admin',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX (is_active)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS discount_campaigns (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    target_scope VARCHAR(100) DEFAULT 'all',
+                    discount_type ENUM('percentage', 'fixed_usd') DEFAULT 'percentage',
+                    discount_value DECIMAL(10,2) NOT NULL,
+                    start_datetime DATETIME NOT NULL,
+                    end_datetime DATETIME NOT NULL,
+                    target_client VARCHAR(255) DEFAULT 'all',
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_by VARCHAR(100) DEFAULT 'admin',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (is_active),
+                    INDEX (start_datetime),
+                    INDEX (end_datetime)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
@@ -764,5 +795,70 @@ PROMPT;
     public static function getChatMaxMessages(): int {
         $configs = self::getBudgetConfigs();
         return isset($configs['chat_max_messages']) ? (int)$configs['chat_max_messages'] : 10;
+    }
+
+    /**
+     * Obtiene todas las campañas de descuento registradas
+     */
+    public static function getAllCampaigns(): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->query("SELECT * FROM discount_campaigns ORDER BY id DESC");
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Crea una nueva campaña de descuento
+     */
+    public static function createCampaign(array $data, string $createdBy = 'admin'): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO discount_campaigns (
+                name, target_scope, discount_type, discount_value,
+                start_datetime, end_datetime, target_client, is_active, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        $stmt->execute([
+            $data['name'] ?? 'Campaña Promocional',
+            $data['target_scope'] ?? 'all',
+            $data['discount_type'] ?? 'percentage',
+            (float)($data['discount_value'] ?? 0),
+            $data['start_datetime'] ?? date('Y-m-d H:i:s'),
+            $data['end_datetime'] ?? date('Y-m-d H:i:s', strtotime('+30 days')),
+            $data['target_client'] ?? 'all',
+            isset($data['is_active']) ? (int)$data['is_active'] : 1,
+            $createdBy
+        ]);
+
+        $newId = (int)$db->lastInsertId();
+        $stmt = $db->prepare("SELECT * FROM discount_campaigns WHERE id = ?");
+        $stmt->execute([$newId]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Activa o desactiva una campaña de descuento
+     */
+    public static function toggleCampaign(int $id, bool $isActive): bool {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("UPDATE discount_campaigns SET is_active = ? WHERE id = ?");
+        return $stmt->execute([$isActive ? 1 : 0, $id]);
+    }
+
+    /**
+     * Elimina una campaña de descuento
+     */
+    public static function deleteCampaign(int $id): bool {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("DELETE FROM discount_campaigns WHERE id = ?");
+        return $stmt->execute([$id]);
     }
 }

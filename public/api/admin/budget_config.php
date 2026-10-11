@@ -83,11 +83,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    if ($action === 'campaigns') {
+        echo json_encode([
+            'success' => true,
+            'campaigns' => ChatDB::getAllCampaigns()
+        ]);
+        exit;
+    }
+
     $configs = ChatDB::getBudgetConfigs();
     $dolar = getLiveDolarRates();
     $history = ChatDB::getConfigHistory(10);
     $sentQuotations = ChatDB::getSentQuotations(10);
     $prompts = ChatDB::getAllPrompts();
+    $campaigns = ChatDB::getAllCampaigns();
 
     echo json_encode([
         'success' => true,
@@ -96,7 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         'history' => $history,
         'sent_quotations' => $sentQuotations,
         'prompts' => $prompts,
-        'active_prompt' => ChatDB::getActivePrompt()
+        'active_prompt' => ChatDB::getActivePrompt(),
+        'campaigns' => $campaigns
     ]);
     exit;
 }
@@ -171,6 +181,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'message' => "Aumento del {$percent}% aplicado con éxito a todas las tarifas.",
             'configs' => $updatedConfigs,
             'history' => ChatDB::getConfigHistory(10)
+        ]);
+        exit;
+    }
+
+    if ($action === 'create_campaign') {
+        $campaignData = $payload['campaign'] ?? [];
+        if (empty($campaignData['name'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'El nombre de la campaña es requerido.']);
+            exit;
+        }
+
+        $adminName = $adminUser['username'] ?? 'admin';
+        $newCamp = ChatDB::createCampaign($campaignData, $adminName);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Campaña creada con éxito.',
+            'campaign' => $newCamp,
+            'campaigns' => ChatDB::getAllCampaigns()
+        ]);
+        exit;
+    }
+
+    if ($action === 'toggle_campaign') {
+        $campId = (int)($payload['campaign_id'] ?? 0);
+        $isActive = !empty($payload['is_active']);
+
+        ChatDB::toggleCampaign($campId, $isActive);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Estado de campaña actualizado.',
+            'campaigns' => ChatDB::getAllCampaigns()
+        ]);
+        exit;
+    }
+
+    if ($action === 'delete_campaign') {
+        $campId = (int)($payload['campaign_id'] ?? 0);
+        ChatDB::deleteCampaign($campId);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Campaña eliminada correctamente.',
+            'campaigns' => ChatDB::getAllCampaigns()
+        ]);
+        exit;
+    }
+
+    if ($action === 'send_quotation_to_client') {
+        $quotationData = $payload['quotation'] ?? [];
+        if (empty($quotationData['client_recipient'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Destinatario del cliente requerido.']);
+            exit;
+        }
+
+        $adminName = $adminUser['username'] ?? 'admin';
+        $quoteId = ChatDB::saveSentQuotation($quotationData, $adminName);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Cotización registrada y asociada al cliente con éxito.',
+            'quotation_id' => $quoteId,
+            'sent_quotations' => ChatDB::getSentQuotations(20)
         ]);
         exit;
     }

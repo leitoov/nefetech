@@ -102,7 +102,35 @@ if (empty($apiKey) || str_starts_with($apiKey, 'tu_')) {
     exit;
 }
 
-// 6. SYSTEM INSTRUCTION OPTIMIZADA (Extremadamente concisa para ahorrar tokens de entrada y salida)
+// 6. VERIFICAR CACHÉ SEMÁNTICO VECTORIAL (RAG)
+require_once __DIR__ . '/utils/VectorCache.php';
+$cachedVector = null;
+
+try {
+    $searchResult = VectorCache::findSimilar($userMessage, $apiKey, 0.70);
+    if ($searchResult && isset($searchResult['response'])) {
+        // ¡COINCIDENCIA SEMÁNTICA ENCONTRADA! 0 TOKENS CONSUMIDOS EN GENERACIÓN
+        $cachedReply = $searchResult['response'];
+        ChatDB::logMessage($sessionId, 'bot', $cachedReply, 0);
+
+        echo json_encode([
+            'success' => true,
+            'cached' => true,
+            'similarity' => $searchResult['similarity'],
+            'matched_query' => $searchResult['query_matched'],
+            'messages_used' => $currentCount,
+            'remaining_messages' => $maxMessages - $currentCount,
+            'respuesta' => $cachedReply
+        ]);
+        exit;
+    } elseif ($searchResult && isset($searchResult['query_embedding'])) {
+        $cachedVector = $searchResult['query_embedding'];
+    }
+} catch (Exception $e) {
+    // Si falla el caché semántico, continuar con el flujo normal de Gemini
+}
+
+// 7. SYSTEM INSTRUCTION OPTIMIZADA (Extremadamente concisa para ahorrar tokens)
 $systemInstruction = "Eres el asistente de Nefetech (software a medida, IA y consultoría). " .
 "REGLA CRÍTICA DE BREVEDAD: Responde SIEMPRE en un máximo de 2 a 3 oraciones muy directas y claras. " .
 "No hagas introducciones largas ni repitas lo que dijo el usuario. " .
@@ -161,6 +189,13 @@ $botReply = trim($result['candidates'][0]['content']['parts'][0]['text']);
 
 // Registrar respuesta en base de datos
 ChatDB::logMessage($sessionId, 'bot', $botReply, (int)(mb_strlen($botReply) / 4));
+
+// Guardar en Caché Semántico Vectorial para futuras consultas similares (0 tokens futuro)
+try {
+    VectorCache::store($userMessage, $botReply, $cachedVector, $apiKey);
+} catch (Exception $e) {
+    // Si falla el guardado del vector, no interrumpe la respuesta al usuario
+}
 
 echo json_encode([
     'success' => true,

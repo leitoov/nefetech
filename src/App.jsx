@@ -32,8 +32,9 @@ function App() {
     };
   }, []);
 
-  // Panel de administración en /admin o #admin
-  const isAdmin = currentPath.startsWith('/admin') || currentHash === '#admin';
+  // Panel de administración en admin.nefetech.online, /admin o #admin
+  const isSubdomainAdmin = window.location.hostname.startsWith('admin.');
+  const isAdmin = isSubdomainAdmin || currentPath.startsWith('/admin') || currentHash === '#admin';
   if (isAdmin) {
     return <AdminPanel />;
   }

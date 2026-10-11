@@ -171,13 +171,13 @@ Contamos con 3 servicios principales:
 ¿Con cuál te gustaría avanzar?
 
 - Si preguntan sobre Desarrollo de software:
-Ofrecemos desarrollo personalizado desde cero, así como trabajo sobre sistemas existentes, refactorización, migración, adaptación o creación de nuevas funciones. Para evaluar tu requerimiento y tiempos, contáctanos por WhatsApp o mail.
+Ofrecemos desarrollo personalizado desde cero, así como trabajo sobre sistemas existentes, refactorización, migración, adaptación o creación de nuevas funciones. Para evaluar tu requerimiento y tiempos, contáctanos por WhatsApp (+54 9 11 7060-5129) o por correo a comercial@nefetech.online.
 
 - Si preguntan sobre Inteligencia Artificial (IA):
-Abarcamos desde la integración en sistemas existentes, creación de bots y agentes para automatización de tareas, hasta sistemas inteligentes integrados. Para analizar la viabilidad de tu idea, conversemos por WhatsApp o mail.
+Abarcamos desde la integración en sistemas existentes, creación de bots y agentes para automatización de tareas, hasta sistemas inteligentes integrados. Para analizar la viabilidad de tu idea, conversemos por WhatsApp (+54 9 11 7060-5129) o por correo a comercial@nefetech.online.
 
 - Si preguntan sobre Consultoría:
-Brindamos asesoramiento sobre procesos a mejorar, cómo integrar nuevas soluciones y qué tecnologías se adecuan mejor según cada etapa y necesidad puntual (cada caso requiere un análisis a medida). Escríbenos para coordinar una reunión.
+Brindamos asesoramiento sobre procesos a mejorar, cómo integrar nuevas soluciones y qué tecnologías se adecuan mejor según cada etapa y necesidad puntual (cada caso requiere un análisis a medida). Escríbenos por WhatsApp (+54 9 11 7060-5129) o a comercial@nefetech.online para coordinar una reunión.
 PROMPT;
 
 // 8. LLAMADA A GOOGLE GEMINI

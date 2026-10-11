@@ -172,13 +172,12 @@ export function AIChatModal({ isOpen, onClose }) {
     try {
       const data = await sendChatMessage(trimmed);
 
-      // Si el bot solicita datos de contacto para cerrar la propuesta
+      // Si el bot solicita datos de contacto para cerrar la propuesta (límite de 10 alcanzado)
       if (data.ask_contact_info) {
         setIsAskingContact(true);
-      }
-
-      // Si el usuario ya envió su propuesta con datos y el lead se procesó
-      if (data.lead_submitted || data.limit_reached) {
+        setIsLimitReached(false);
+      } else if (data.lead_submitted || data.limit_reached) {
+        // Solo cuando ya envió el mensaje final con datos se marca completado
         setIsLimitReached(true);
         setIsAskingContact(false);
         localStorage.setItem('nefetech_chat_limit_reached', 'true');
@@ -272,14 +271,7 @@ export function AIChatModal({ isOpen, onClose }) {
           </div>
 
           <div className="flex items-center gap-1">
-            <button
-              onClick={handleClearHistory}
-              title="Reiniciar conversación"
-              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-              aria-label="Limpiar chat"
-            >
-              <Icon name="restart_alt" size={20} />
-            </button>
+
             <button
               onClick={onClose}
               className="hidden sm:flex p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer"

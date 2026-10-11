@@ -314,6 +314,13 @@ class ChatDB {
                 ['name' => 'UI Kit Moderno & Responsive (Tailwind)', 'cost_usd' => 180],
                 ['name' => 'Diseño UI/UX a Medida en Figma + Prototipo', 'cost_usd' => 450],
                 ['name' => 'Diseño Premium State-of-the-Art + Microanimaciones', 'cost_usd' => 850]
+            ],
+            'consultoria_modules' => [
+                ['name' => 'Sin asesoría', 'cost_usd' => 0],
+                ['name' => 'Diagnóstico Inicial de Procesos y Arquitectura', 'cost_usd' => 150],
+                ['name' => 'Asesoría Integral de Selección Tecnológica y Roadmap', 'cost_usd' => 350],
+                ['name' => 'Auditoría de Código, Seguridad y Performance', 'cost_usd' => 500],
+                ['name' => 'Acompañamiento Tecnológico Mensual Continuo', 'cost_usd' => 800]
             ]
         ];
 

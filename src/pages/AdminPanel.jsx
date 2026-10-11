@@ -9,8 +9,11 @@ export function AdminPanel() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Pestaña activa del panel: 'leads', 'calculadora', 'configuracion'
-  const [activeTab, setActiveTab] = useState('leads');
+  // Pestañas principales: 'dashboard', 'leads', 'calculadora', 'configuracion'
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Modal para agrandar el chat de un lead a pantalla completa
+  const [expandedChatLead, setExpandedChatLead] = useState(null);
 
   // Credenciales form
   const [loginUser, setLoginUser] = useState('');
@@ -34,25 +37,32 @@ export function AdminPanel() {
   const [replySuccessMsg, setReplySuccessMsg] = useState('');
 
   // -------------------------------------------------------------
-  // ESTADO DE CALCULADORA DE PRESUPUESTO & CONFIGURACIÓN
+  // CALCULADORA & ASESORÍA & COTIZACIÓN
   // -------------------------------------------------------------
   const [dolarRate, setDolarRate] = useState({ blue: 1540, actualizado: '' });
   const [budgetConfig, setBudgetConfig] = useState(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
   const [saveConfigMsg, setSaveConfigMsg] = useState('');
 
-  // Parámetros de la Calculadora actual
-  const [calcHours, setCalcHours] = useState(40);
+  // Modo de la Calculadora: 'manual' o 'ia'
+  const [calcMode, setCalcMode] = useState('ia');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiEstimating, setIsAiEstimating] = useState(false);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState('');
+
+  // Parámetros calculables
+  const [calcHours, setCalcHours] = useState(50);
   const [calcHourlyRate, setCalcHourlyRate] = useState(35);
   const [calcSelectedLang, setCalcSelectedLang] = useState('React / Next.js');
   const [calcSelectedIA, setCalcSelectedIA] = useState('RAG Semántico con Base Vectorial');
+  const [calcSelectedAsesoria, setCalcSelectedAsesoria] = useState('Diagnóstico Inicial de Procesos y Arquitectura');
   const [calcIncludeDomain, setCalcIncludeDomain] = useState(true);
   const [calcServerType, setCalcServerType] = useState('server_basic_monthly_usd');
   const [calcServerMonths, setCalcServerMonths] = useState(12);
   const [calcSelectedDesign, setCalcSelectedDesign] = useState('UI Kit Moderno & Responsive (Tailwind)');
-  const [calcMarginPercent, setCalcMarginPercent] = useState(15); // Margen de contingencia o ganancia
+  const [calcMarginPercent, setCalcMarginPercent] = useState(15);
 
-  // 1. Manejo de Login
+  // Manejo de Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -88,7 +98,7 @@ export function AdminPanel() {
     localStorage.removeItem('nefetech_admin_user');
   };
 
-  // 2. Cargar Leads
+  // Cargar Leads
   const fetchLeads = async () => {
     if (!token) return;
     setIsLoadingLeads(true);
@@ -114,7 +124,7 @@ export function AdminPanel() {
     }
   };
 
-  // 3. Cargar Detalle del Lead
+  // Cargar Detalle del Lead
   const fetchLeadDetail = async (id) => {
     if (!token || !id) return;
     setIsLoadingDetail(true);
@@ -133,7 +143,7 @@ export function AdminPanel() {
     }
   };
 
-  // 4. Cargar Parámetros de Presupuesto y Cotización Dólar en Vivo
+  // Cargar Parámetros de Presupuesto y Cotización Dólar
   const fetchBudgetConfig = async () => {
     if (!token) return;
     setIsLoadingConfig(true);
@@ -173,7 +183,47 @@ export function AdminPanel() {
     }
   }, [selectedLeadId]);
 
-  // 5. Enviar Respuesta a Lead
+  // Estimador con Inteligencia Artificial
+  const handleAIEstimate = async (e) => {
+    e.preventDefault();
+    if (!aiPrompt.trim() || isAiEstimating) return;
+
+    setIsAiEstimating(true);
+    setAiAnalysisResult('');
+
+    try {
+      const res = await fetch('/api/admin/ai_estimate.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt: aiPrompt })
+      });
+      const data = await res.json();
+      if (data.success && data.estimation) {
+        const est = data.estimation;
+        setAiAnalysisResult(est.analisis || 'Estimación procesada con éxito.');
+        if (est.horas_sugeridas) setCalcHours(Number(est.horas_sugeridas));
+        if (est.lenguaje_sugerido) setCalcSelectedLang(est.lenguaje_sugerido);
+        if (est.ia_modulo_sugerido) setCalcSelectedIA(est.ia_modulo_sugerido);
+        if (est.diseno_sugerido) setCalcSelectedDesign(est.diseno_sugerido);
+        if (est.servidor_sugerido) setCalcServerType(est.servidor_sugerido);
+        if (est.meses_servidor) setCalcServerMonths(Number(est.meses_servidor));
+        if (est.incluir_dominio !== undefined) setCalcIncludeDomain(Boolean(est.incluir_dominio));
+        if (est.asesoria_modulo_sugerido) setCalcSelectedAsesoria(est.asesoria_modulo_sugerido);
+        if (est.margen_sugerido) setCalcMarginPercent(Number(est.margen_sugerido));
+      } else {
+        alert(data.error || 'No se pudo generar la estimación de IA');
+      }
+    } catch {
+      alert('Error de conexión al consultar el asistente de IA');
+    } finally {
+      setIsAiEstimating(false);
+    }
+  };
+
+  // Enviar Respuesta a Lead
   const handleSendReply = async (e) => {
     e.preventDefault();
     if (!replyMessage.trim() || !selectedLeadId) return;
@@ -212,7 +262,7 @@ export function AdminPanel() {
     }
   };
 
-  // 6. Guardar Cambios en Configuración de Presupuestos
+  // Guardar Cambios en Configuración de Presupuestos
   const handleSaveBudgetConfig = async (e) => {
     e.preventDefault();
     setSaveConfigMsg('');
@@ -236,33 +286,40 @@ export function AdminPanel() {
     }
   };
 
-  // -------------------------------------------------------------
-  // CÁLCULOS DE LA CALCULADORA
-  // -------------------------------------------------------------
+  // Cálculos matemáticos de la Calculadora
   const selectedLangObj = budgetConfig?.languages?.find(l => l.name === calcSelectedLang);
   const langFactor = selectedLangObj ? Number(selectedLangObj.factor) : 1.0;
-
   const costDevelopmentUSD = calcHours * calcHourlyRate * langFactor;
 
   const selectedIaObj = budgetConfig?.ia_modules?.find(i => i.name === calcSelectedIA);
   const costIaUSD = selectedIaObj ? Number(selectedIaObj.cost_usd) : 0;
 
+  const selectedAsesoriaObj = budgetConfig?.consultoria_modules?.find(c => c.name === calcSelectedAsesoria);
+  const costAsesoriaUSD = selectedAsesoriaObj ? Number(selectedAsesoriaObj.cost_usd) : 0;
+
   const costDomainUSD = calcIncludeDomain ? Number(budgetConfig?.infrastructure?.domain_annual_usd || 18) : 0;
-  
   const serverMonthlyRate = Number(budgetConfig?.infrastructure?.[calcServerType] || 0);
   const costServerUSD = serverMonthlyRate * calcServerMonths;
 
   const selectedDesignObj = budgetConfig?.design_levels?.find(d => d.name === calcSelectedDesign);
   const costDesignUSD = selectedDesignObj ? Number(selectedDesignObj.cost_usd) : 0;
 
-  const subtotalUSD = costDevelopmentUSD + costIaUSD + costDomainUSD + costServerUSD + costDesignUSD;
+  const subtotalUSD = costDevelopmentUSD + costIaUSD + costAsesoriaUSD + costDomainUSD + costServerUSD + costDesignUSD;
   const marginUSD = (subtotalUSD * (calcMarginPercent / 100));
   const totalUSD = subtotalUSD + marginUSD;
 
   const blueRate = Number(dolarRate.blue) || 1540;
   const totalARS = totalUSD * blueRate;
 
-  // Si no está autenticado, mostrar pantalla de Login
+  // Estadísticas para el Dashboard Gráfico
+  const totalLeadsCount = leads.length;
+  const nuevosLeadsCount = leads.filter(l => l.status === 'nuevo').length;
+  const enCursoLeadsCount = leads.filter(l => l.status === 'en_contacto').length;
+  const conWhatsAppCount = leads.filter(l => Boolean(l.phone)).length;
+  const conEmailCount = leads.filter(l => Boolean(l.email)).length;
+  const tasaContacto = totalLeadsCount > 0 ? Math.round((conEmailCount / totalLeadsCount) * 100) : 0;
+
+  // Si no está autenticado, Login
   if (!token) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -339,6 +396,72 @@ export function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-800">
+      
+      {/* ========================================================= */}
+      {/* MODAL PARA AGRANDAR CHAT A PANTALLA COMPLETA              */}
+      {/* ========================================================= */}
+      {expandedChatLead && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-blue-600 flex items-center justify-center">
+                  <Icon name="chat" size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Historial Completo con IA • Lead #{expandedChatLead.id}</h3>
+                  <span className="text-xs text-slate-400">
+                    {expandedChatLead.email || 'Sin email'} • {expandedChatLead.phone || 'Sin WhatsApp'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setExpandedChatLead(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <Icon name="close" size={22} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+              {!leadDetail?.chat_history || leadDetail.chat_history.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm">Sin mensajes registrados en esta sesión.</div>
+              ) : (
+                leadDetail.chat_history.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-xs ${
+                        msg.sender === 'user'
+                          ? 'bg-blue-600 text-white rounded-br-xs'
+                          : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-4 text-[11px] opacity-75 mb-1.5 font-bold">
+                        <span>{msg.sender === 'user' ? '👤 Cliente' : '🤖 Asistente Nefetech'}</span>
+                        <span>{msg.created_at}</span>
+                      </div>
+                      <div className="whitespace-pre-line leading-relaxed">{msg.message}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setExpandedChatLead(null)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <header className="bg-slate-900 text-white px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-6">
@@ -348,12 +471,20 @@ export function AdminPanel() {
             </div>
             <div>
               <h1 className="font-bold text-base tracking-tight leading-none">Nefetech CRM Admin</h1>
-              <span className="text-[11px] text-slate-400">Panel de Control & Cotizador Interno</span>
+              <span className="text-[11px] text-slate-400">Control Comercial, Cotizaciones & IA</span>
             </div>
           </div>
 
-          {/* Navegación por Pestañas */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-800 p-1 rounded-xl text-xs font-bold">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Icon name="dashboard" size={15} />
+              <span>Dashboard & Métricas</span>
+            </button>
             <button
               onClick={() => setActiveTab('leads')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -370,7 +501,7 @@ export function AdminPanel() {
               }`}
             >
               <Icon name="calculate" size={15} />
-              <span>Calculadora de Presupuesto</span>
+              <span>Calculadora & Asesoría</span>
             </button>
             <button
               onClick={() => setActiveTab('configuracion')}
@@ -385,7 +516,6 @@ export function AdminPanel() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Badge Dólar en Vivo */}
           <div className="hidden lg:flex items-center gap-2 bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-xl text-xs">
             <span className="text-emerald-400 font-bold">USD Blue Hoy:</span>
             <span className="text-white font-mono font-bold">${dolarRate.blue}</span>
@@ -399,7 +529,7 @@ export function AdminPanel() {
 
           <button
             onClick={fetchBudgetConfig}
-            title="Actualizar cotización dólar y datos"
+            title="Refrescar cotizaciones"
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
           >
             <Icon name="sync" size={17} />
@@ -418,6 +548,12 @@ export function AdminPanel() {
 
       {/* Selector móvil de pestañas */}
       <div className="md:hidden flex bg-slate-900 border-b border-slate-800 p-2 gap-1 text-xs font-bold text-white overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'dashboard' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
+        >
+          Métricas
+        </button>
         <button
           onClick={() => setActiveTab('leads')}
           className={`flex-1 py-1.5 px-2 rounded-lg text-center ${activeTab === 'leads' ? 'bg-blue-600' : 'bg-slate-800 text-slate-400'}`}
@@ -439,11 +575,192 @@ export function AdminPanel() {
       </div>
 
       {/* ========================================================= */}
+      {/* PESTAÑA 0: DASHBOARD LIMPIO CON GRÁFICOS Y PROMEDIOS      */}
+      {/* ========================================================= */}
+      {activeTab === 'dashboard' && (
+        <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto space-y-6">
+            
+            {/* Tarjeta de bienvenida / encabezado métrico */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Métricas & Estado Comercial</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Resumen estadístico de captación, canales de contacto y cotización promedio.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveTab('calculadora')}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="add" size={16} />
+                  <span>Nueva Cotización</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjetas KPI Superiores */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Leads</span>
+                  <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Icon name="groups" size={18} />
+                  </div>
+                </div>
+                <div className="text-3xl font-black text-slate-900">{totalLeadsCount}</div>
+                <div className="text-[11px] text-slate-400 mt-1">Registrados en la plataforma</div>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Nuevos Sin Contactar</span>
+                  <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Icon name="mark_email_unread" size={18} />
+                  </div>
+                </div>
+                <div className="text-3xl font-black text-amber-600">{nuevosLeadsCount}</div>
+                <div className="text-[11px] text-slate-400 mt-1">Requieren primera propuesta</div>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">En Conversación</span>
+                  <div className="h-8 w-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Icon name="forum" size={18} />
+                  </div>
+                </div>
+                <div className="text-3xl font-black text-indigo-600">{enCursoLeadsCount}</div>
+                <div className="text-[11px] text-slate-400 mt-1">Con respuestas despachadas</div>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa de Identificación</span>
+                  <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <Icon name="contact_mail" size={18} />
+                  </div>
+                </div>
+                <div className="text-3xl font-black text-emerald-600">{tasaContacto}%</div>
+                <div className="text-[11px] text-slate-400 mt-1">De leads dejaron correo válido</div>
+              </div>
+            </div>
+
+            {/* Gráficos Visuales de Distribución */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Gráfico 1: Canales de Contacto */}
+              <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200">
+                <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-5 flex items-center gap-2">
+                  <Icon name="pie_chart" size={18} className="text-blue-600" />
+                  <span>Distribución de Canales de Contacto</span>
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
+                      <span>Correo Electrónico ({conEmailCount})</span>
+                      <span>{totalLeadsCount > 0 ? Math.round((conEmailCount / totalLeadsCount) * 100) : 0}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (conEmailCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
+                      <span>WhatsApp / Teléfono ({conWhatsAppCount})</span>
+                      <span>{totalLeadsCount > 0 ? Math.round((conWhatsAppCount / totalLeadsCount) * 100) : 0}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (conWhatsAppCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4 text-center">
+                  <div className="p-4 bg-slate-50 rounded-2xl">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Tarifa Base Definida</span>
+                    <div className="text-xl font-black text-slate-800 mt-0.5">${calcHourlyRate} USD/h</div>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Cotización Blue</span>
+                    <div className="text-xl font-black text-emerald-600 mt-0.5">${blueRate} ARS</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gráfico 2: Accesos Directos & Actividad Rápida */}
+              <div className="lg:col-span-5 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Icon name="bolt" size={18} className="text-blue-600" />
+                    <span>Acciones Frecuentes</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                    Gestiona leads pendientes, envía presupuestos automatizados o personaliza el tarifario de Nefetech.
+                  </p>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setActiveTab('leads')}
+                      className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="inbox" size={18} className="text-blue-600" />
+                        <span>Ver Bandeja de Leads ({leads.length})</span>
+                      </div>
+                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('calculadora')}
+                      className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="calculate" size={18} className="text-indigo-600" />
+                        <span>Abrir Calculadora Inteligente con IA</span>
+                      </div>
+                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('configuracion')}
+                      className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="settings" size={18} className="text-slate-600" />
+                        <span>Configurar Costos & Multiplicadores</span>
+                      </div>
+                      <Icon name="chevron_right" size={16} className="text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-400 text-center">
+                  Plataforma Nefetech v2.0 • Sincronizada en Tiempo Real
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* PESTAÑA 1: BANDEJA DE LEADS & CRM                         */}
       {/* ========================================================= */}
       {activeTab === 'leads' && (
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Sidebar: Lista de Leads */}
           <aside className="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 h-[300px] md:h-auto">
             <div className="p-4 border-b border-slate-100">
               <div className="flex items-center justify-between mb-3">
@@ -540,7 +857,6 @@ export function AdminPanel() {
             </div>
           </aside>
 
-          {/* Área de Detalle y Respuesta */}
           <main className="flex-1 bg-slate-50 overflow-y-auto p-4 md:p-8 flex flex-col gap-6">
             {!activeLead ? (
               <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
@@ -565,13 +881,13 @@ export function AdminPanel() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
-                          setCalcHours(60);
+                          setAiPrompt(activeLead.lead_message);
                           setActiveTab('calculadora');
                         }}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors cursor-pointer"
                       >
                         <Icon name="calculate" size={16} />
-                        <span>Cotizar en Calculadora</span>
+                        <span>Cotizar con IA</span>
                       </button>
 
                       {activeLead.phone && (
@@ -710,17 +1026,30 @@ export function AdminPanel() {
                   </form>
                 </div>
 
-                {/* Transcripción del Chatbot */}
+                {/* Transcripción del Chatbot con BOTÓN AGRANDAR */}
                 <div className="bg-white rounded-2xl p-6 shadow-xs border border-slate-200">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Icon name="chat" size={16} className="text-blue-600" />
-                    <span>Historial Completo de Conversación del ChatBot</span>
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                      <Icon name="chat" size={16} className="text-blue-600" />
+                      <span>Historial de Conversación con el Asistente</span>
+                    </h3>
+
+                    {leadDetail?.chat_history && leadDetail.chat_history.length > 0 && (
+                      <button
+                        onClick={() => setExpandedChatLead(activeLead)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                        title="Ver chat completo en pantalla grande"
+                      >
+                        <Icon name="open_in_full" size={14} />
+                        <span>Agrandar Chat</span>
+                      </button>
+                    )}
+                  </div>
 
                   {!leadDetail?.chat_history || leadDetail.chat_history.length === 0 ? (
                     <div className="p-4 text-xs text-slate-400 text-center">Sin mensajes previos registrados.</div>
                   ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto p-3 bg-slate-50/60 rounded-xl border border-slate-100">
+                    <div className="space-y-3 max-h-80 overflow-y-auto p-3 bg-slate-50/60 rounded-xl border border-slate-100">
                       {leadDetail.chat_history.map((msg, idx) => (
                         <div
                           key={idx}
@@ -747,21 +1076,21 @@ export function AdminPanel() {
       )}
 
       {/* ========================================================= */}
-      {/* PESTAÑA 2: CALCULADORA DE PRESUPUESTO INTERNA             */}
+      {/* PESTAÑA 2: CALCULADORA DE PRESUPUESTO & ASESORÍA CON IA   */}
       {/* ========================================================= */}
       {activeTab === 'calculadora' && (
         <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto space-y-6">
             
-            {/* Header Cotización Dólar */}
+            {/* Encabezado con Cotización Dólar */}
             <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
-                  Herramienta de Estimación Comercial Interna
+                  Cotizador Dinámico • Software, IA y Asesoría Tecnológica
                 </span>
                 <h2 className="text-2xl font-black tracking-tight mt-1">Calculadora de Presupuestos</h2>
                 <p className="text-xs text-slate-300 mt-1">
-                  Cotiza horas, tecnologías, inteligencia artificial, infraestructura y diseño en tiempo real.
+                  Estima por parámetros manuales o deja que la IA analice la idea del proyecto en segundos.
                 </p>
               </div>
 
@@ -781,20 +1110,90 @@ export function AdminPanel() {
               </div>
             </div>
 
+            {/* Selector de Modo: Asistente IA vs Manual */}
+            <div className="flex gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs max-w-md">
+              <button
+                onClick={() => setCalcMode('ia')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  calcMode === 'ia' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon name="auto_awesome" size={16} />
+                <span>Estimar con IA (Chat)</span>
+              </button>
+              <button
+                onClick={() => setCalcMode('manual')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  calcMode === 'manual' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon name="tune" size={16} />
+                <span>Configuración Manual</span>
+              </button>
+            </div>
+
+            {/* MODO ASISTENTE DE IA PARA COTIZAR */}
+            {calcMode === 'ia' && (
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-blue-100 space-y-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Icon name="smart_toy" size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Asistente de Estimación IA</h3>
+                    <p className="text-xs text-slate-500">Pega o describe la idea del cliente y la IA sugerirá horas, stack, IA y asesoría.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleAIEstimate} className="space-y-3">
+                  <textarea
+                    rows={3}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Ejemplo: El cliente necesita un sistema para una clínica odontológica con turnos online, historia clínica, recordatorios de WhatsApp automáticos y módulo de IA para predecir ausencias..."
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all leading-relaxed"
+                  />
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isAiEstimating || !aiPrompt.trim()}
+                      className="py-2.5 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <Icon name="auto_awesome" size={16} />
+                      <span>{isAiEstimating ? 'Analizando requerimiento...' : 'Analizar & Calcular con IA'}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {aiAnalysisResult && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-slate-800 leading-relaxed space-y-1">
+                    <div className="font-bold text-blue-900 flex items-center gap-1.5">
+                      <Icon name="lightbulb" size={16} className="text-amber-500" />
+                      <span>Diagnóstico de la IA:</span>
+                    </div>
+                    <p>{aiAnalysisResult}</p>
+                    <div className="text-[11px] text-blue-700 font-semibold pt-1">
+                      Los parámetros en la calculadora han sido calibrados automáticamente según este análisis.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
-              {/* Formulario de Parámetros de Entrada */}
+              {/* Formulario de Parámetros */}
               <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200 space-y-6">
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Icon name="tune" size={20} className="text-blue-600" />
-                  <span>1. Parámetros de Desarrollo</span>
+                  <Icon name="code" size={20} className="text-blue-600" />
+                  <span>1. Desarrollo de Software</span>
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Horas estimadas */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Horas Estimadas de Trabajo:
+                      Horas Estimadas:
                     </label>
                     <div className="flex items-center gap-3">
                       <input
@@ -809,7 +1208,6 @@ export function AdminPanel() {
                     </div>
                   </div>
 
-                  {/* Tarifa Base USD/hora */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                       Costo Base por Hora:
@@ -828,37 +1226,60 @@ export function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Lenguaje / Stack */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Stack / Lenguaje de Programación:
+                    Stack / Lenguaje:
                   </label>
                   <select
                     value={calcSelectedLang}
                     onChange={(e) => setCalcSelectedLang(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
                   >
                     {budgetConfig?.languages?.map((lang) => (
                       <option key={lang.name} value={lang.name}>
-                        {lang.name} (Factor multiplicador: x{lang.factor})
+                        {lang.name} (Factor: x{lang.factor})
                       </option>
                     ))}
                   </select>
                 </div>
 
+                {/* Asesoría y Consultoría */}
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
-                  <Icon name="smart_toy" size={20} className="text-blue-600" />
-                  <span>2. Módulos de Inteligencia Artificial (IA)</span>
+                  <Icon name="psychology" size={20} className="text-blue-600" />
+                  <span>2. Asesoría & Consultoría Tecnológica</span>
                 </h3>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Nivel de Integración de IA:
+                    Nivel de Asesoramiento:
+                  </label>
+                  <select
+                    value={calcSelectedAsesoria}
+                    onChange={(e) => setCalcSelectedAsesoria(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                  >
+                    {budgetConfig?.consultoria_modules?.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name} (+${c.cost_usd} USD)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Inteligencia Artificial */}
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
+                  <Icon name="smart_toy" size={20} className="text-blue-600" />
+                  <span>3. Soluciones de Inteligencia Artificial (IA)</span>
+                </h3>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Módulo de IA:
                   </label>
                   <select
                     value={calcSelectedIA}
                     onChange={(e) => setCalcSelectedIA(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
                   >
                     {budgetConfig?.ia_modules?.map((ia) => (
                       <option key={ia.name} value={ia.name}>
@@ -868,9 +1289,10 @@ export function AdminPanel() {
                   </select>
                 </div>
 
+                {/* Diseño UI/UX */}
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
                   <Icon name="palette" size={20} className="text-blue-600" />
-                  <span>3. Diseño UI/UX</span>
+                  <span>4. Diseño UI/UX</span>
                 </h3>
 
                 <div>
@@ -880,7 +1302,7 @@ export function AdminPanel() {
                   <select
                     value={calcSelectedDesign}
                     onChange={(e) => setCalcSelectedDesign(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
                   >
                     {budgetConfig?.design_levels?.map((d) => (
                       <option key={d.name} value={d.name}>
@@ -890,9 +1312,10 @@ export function AdminPanel() {
                   </select>
                 </div>
 
+                {/* Infraestructura */}
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3 pt-2">
                   <Icon name="dns" size={20} className="text-blue-600" />
-                  <span>4. Infraestructura y Hosting</span>
+                  <span>5. Infraestructura & Servidores</span>
                 </h3>
 
                 <div className="space-y-4">
@@ -904,7 +1327,7 @@ export function AdminPanel() {
                       className="h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500"
                     />
                     <div className="flex-1 text-xs font-semibold text-slate-800">
-                      Incluir Dominio Anual (.com / .online / .com.ar)
+                      Incluir Dominio Anual
                     </div>
                     <span className="text-xs font-bold text-slate-600 font-mono">
                       +${budgetConfig?.infrastructure?.domain_annual_usd || 18} USD/año
@@ -950,7 +1373,7 @@ export function AdminPanel() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Margen de Contingencia / Comercial (%):
+                      Margen Comercial (%):
                     </label>
                     <input
                       type="range"
@@ -970,7 +1393,7 @@ export function AdminPanel() {
                 </div>
               </div>
 
-              {/* Panel de Resumen de Cotización (Planilla Formal de Presupuesto) */}
+              {/* Panel de Resumen de Cotización */}
               <div className="lg:col-span-5 flex flex-col gap-6">
                 <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-200 flex flex-col justify-between">
                   <div>
@@ -988,7 +1411,6 @@ export function AdminPanel() {
                       </span>
                     </div>
 
-                    {/* Desglose en tabla */}
                     <table className="w-full text-xs border-collapse mb-6">
                       <tbody>
                         <tr className="border-b border-slate-100">
@@ -997,6 +1419,12 @@ export function AdminPanel() {
                           </td>
                           <td className="py-2.5 text-right font-bold font-mono text-slate-900">
                             ${costDevelopmentUSD.toLocaleString()} USD
+                          </td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="py-2.5 text-slate-600 font-medium">Asesoría / Consultoría:</td>
+                          <td className="py-2.5 text-right font-bold font-mono text-slate-900">
+                            ${costAsesoriaUSD.toLocaleString()} USD
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100">
@@ -1013,7 +1441,7 @@ export function AdminPanel() {
                         </tr>
                         <tr className="border-b border-slate-100">
                           <td className="py-2.5 text-slate-600 font-medium">
-                            Hosting ({calcServerMonths} meses) + Dominio:
+                            Hosting ({calcServerMonths}m) + Dominio:
                           </td>
                           <td className="py-2.5 text-right font-bold font-mono text-slate-900">
                             ${(costServerUSD + costDomainUSD).toLocaleString()} USD
@@ -1034,7 +1462,6 @@ export function AdminPanel() {
                       </tbody>
                     </table>
 
-                    {/* Total USD */}
                     <div className="bg-slate-900 text-white p-5 rounded-2xl mb-4 shadow-md">
                       <div className="text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1">
                         Total Presupuestado en USD
@@ -1045,7 +1472,6 @@ export function AdminPanel() {
                       </div>
                     </div>
 
-                    {/* Total Pesos Argentinos (ARS) */}
                     <div className="bg-emerald-50 border border-emerald-200 text-emerald-950 p-5 rounded-2xl">
                       <div className="flex items-center justify-between text-[11px] text-emerald-800 font-bold uppercase tracking-wider mb-1">
                         <span>Total en Pesos Argentinos (ARS)</span>
@@ -1058,11 +1484,10 @@ export function AdminPanel() {
                     </div>
                   </div>
 
-                  {/* Acciones de copia rápida para enviar al cliente */}
                   <div className="mt-6 pt-5 border-t border-slate-100 space-y-2">
                     <button
                       onClick={() => {
-                        const copyText = `Propuesta estimada: ${calcHours} horas de desarrollo en ${calcSelectedLang}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización blue).`;
+                        const copyText = `Propuesta estimada: ${calcHours} horas de desarrollo en ${calcSelectedLang}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización blue).`;
                         navigator.clipboard.writeText(copyText);
                         alert('¡Resumen de presupuesto copiado al portapapeles!');
                       }}
@@ -1081,7 +1506,7 @@ export function AdminPanel() {
       )}
 
       {/* ========================================================= */}
-      {/* PESTAÑA 3: CONFIGURACIÓN EDITABLE DE COSTOS Y TABLA       */}
+      {/* PESTAÑA 3: CONFIGURACIÓN EDITABLE DE COSTOS               */}
       {/* ========================================================= */}
       {activeTab === 'configuracion' && (
         <div className="flex-1 bg-slate-100 p-4 md:p-8 overflow-y-auto">
@@ -1092,7 +1517,7 @@ export function AdminPanel() {
                 <div>
                   <h2 className="text-xl font-black text-slate-900">Configuración de Parámetros de Costos</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Estos valores alimentan la tabla de la calculadora de presupuestos y quedan guardados en MySQL.
+                    Valores maestros que alimentan el cotizador y la IA estimadora.
                   </p>
                 </div>
 
@@ -1172,10 +1597,48 @@ export function AdminPanel() {
                     </div>
                   </div>
 
+                  {/* Asesoría y Consultoría */}
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
+                      3. Servicios de Asesoría & Consultoría Tecnológica (USD Fijo)
+                    </h3>
+                    <div className="space-y-2.5">
+                      {budgetConfig.consultoria_modules?.map((c, idx) => (
+                        <div key={idx} className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                          <input
+                            type="text"
+                            value={c.name}
+                            onChange={(e) => {
+                              const updated = [...budgetConfig.consultoria_modules];
+                              updated[idx].name = e.target.value;
+                              setBudgetConfig({ ...budgetConfig, consultoria_modules: updated });
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-bold">$ USD:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="10000"
+                              value={c.cost_usd}
+                              onChange={(e) => {
+                                const updated = [...budgetConfig.consultoria_modules];
+                                updated[idx].cost_usd = Number(e.target.value);
+                                setBudgetConfig({ ...budgetConfig, consultoria_modules: updated });
+                              }}
+                              className="w-24 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right font-mono"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Módulos de IA */}
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      3. Costos por Módulos de Inteligencia Artificial (USD Fijo)
+                      4. Costos por Módulos de Inteligencia Artificial (USD Fijo)
                     </h3>
                     <div className="space-y-2.5">
                       {budgetConfig.ia_modules?.map((ia, idx) => (
@@ -1213,7 +1676,7 @@ export function AdminPanel() {
                   {/* Infraestructura */}
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider mb-3">
-                      4. Costos de Infraestructura y Servidores (USD)
+                      5. Costos de Infraestructura y Servidores (USD)
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">

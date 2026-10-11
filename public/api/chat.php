@@ -66,17 +66,36 @@ if (mb_strlen($userMessage, 'UTF-8') > 500) {
 ChatDB::logMessage($sessionId, 'user', $userMessage, (int)(mb_strlen($userMessage) / 4));
 $currentCount = ChatDB::incrementMessageCount($sessionId);
 
-// CASO A: Si el usuario ya había recibido la solicitud de datos de contacto (mensaje > 10)
-// procesamos su mensaje de cierre, enviamos el mail con el lead y finalizamos amablemente
+// CASO A: Si la sesión ya alcanzó el límite (mensaje >= 10) y el usuario está enviando su respuesta de contacto
 if ($currentSessionCount >= $maxQuestions) {
-    // Enviar notificación por correo al equipo comercial
+    $contacts = LeadMailer::extractContactInfo($userMessage);
+    $hasEmail = !empty($contacts['emails']);
+    $hasPhone = !empty($contacts['phones']);
+
+    // Si NO contiene ni email ni número de teléfono, NO SE CIERRA EL CHAT
+    if (!$hasEmail && !$hasPhone) {
+        $noContactReply = "Para poder comunicarnos y enviarte la propuesta personalizada, por favor incluye en tu mensaje un correo electrónico (ej: tu@email.com) o un número de WhatsApp/teléfono. ¿Cómo preferís que te contactemos?";
+        ChatDB::logMessage($sessionId, 'bot', $noContactReply, 0);
+
+        echo json_encode([
+            'success' => true,
+            'ask_contact_info' => true,
+            'need_contact_data' => true,
+            'limit_reached' => false,
+            'remaining_messages' => 0,
+            'respuesta' => $noContactReply
+        ]);
+        exit;
+    }
+
+    // SI CONTIENE DATOS DE CONTACTO: Enviar notificación por correo al equipo comercial
     try {
         LeadMailer::sendLeadNotification($sessionId, $userMessage, $ip, $userAgent);
     } catch (Exception $e) {
         // Silencioso
     }
 
-    $finalReply = "¡Muchas gracias! Ya recibimos tu mensaje y tus datos. Nuestro equipo comercial analizará tu proyecto y se pondrá en contacto a la brevedad.\n\n(Si en algún momento prefieres escribirnos directamente, también estamos disponibles en WhatsApp o en comercial@nefetech.online).";
+    $finalReply = "¡Muchas gracias! Ya recibimos tu consulta y tus datos de contacto con éxito. Nuestro equipo comercial analizará los requerimientos de tu proyecto y se comunicará a la brevedad.\n\n(Si en algún momento prefieres escribirnos directamente, también estamos disponibles por WhatsApp o en comercial@nefetech.online).";
     ChatDB::logMessage($sessionId, 'bot', $finalReply, 0);
 
     echo json_encode([

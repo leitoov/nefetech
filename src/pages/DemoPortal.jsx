@@ -260,7 +260,7 @@ export function DemoPortal() {
     if (!pdfQuestion.trim()) return;
 
     if (questionsUsed >= MAX_QUESTIONS_ALLOWED) {
-      alert(`Has alcanzado el límite de ${MAX_QUESTIONS_ALLOWED} preguntas para este PDF. Puedes cargar otro archivo PDF para iniciar un nuevo análisis.`);
+      alert(`Has alcanzado el límite de ${MAX_QUESTIONS_ALLOWED} preguntas.`);
       return;
     }
 
@@ -672,20 +672,10 @@ export function DemoPortal() {
 
                 {/* Input para preguntar o aviso de límite alcanzado */}
                 {questionsUsed >= MAX_QUESTIONS_ALLOWED ? (
-                  <div className="pt-3 border-t border-slate-800 p-3.5 bg-slate-950/90 rounded-2xl border border-slate-800/80 text-center">
-                    <p className="text-xs text-rose-300 font-bold mb-1">
-                      Has alcanzado el límite de {MAX_QUESTIONS_ALLOWED} preguntas para este PDF.
+                  <div className="pt-3 border-t border-slate-800 p-4 bg-slate-950/90 rounded-2xl border border-slate-800/80 text-center">
+                    <p className="text-xs text-rose-300 font-bold">
+                      Has alcanzado el límite de 5 preguntas.
                     </p>
-                    <p className="text-[11px] text-slate-400 mb-3">
-                      Sube otro archivo PDF para iniciar una nueva sesión de análisis vectorial con 5 preguntas adicionales.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5"
-                    >
-                      <Icon name="upload_file" size={16} /> Subir Nuevo PDF
-                    </button>
                   </div>
                 ) : (
                   <form onSubmit={handleAskPdf} className="pt-4 border-t border-slate-800 flex gap-2">

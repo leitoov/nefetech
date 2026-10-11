@@ -66,6 +66,19 @@ if (mb_strlen($userMessage, 'UTF-8') > 500) {
 ChatDB::logMessage($sessionId, 'user', $userMessage, (int)(mb_strlen($userMessage) / 4));
 $currentCount = ChatDB::incrementMessageCount($sessionId);
 
+// CAPTURA AUTOMÁTICA EN SEGUNDO PLANO: Si en cualquier mensaje el usuario comparte email o teléfono, registrar lead
+$earlyContacts = LeadMailer::extractContactInfo($userMessage);
+if (!empty($earlyContacts['emails']) || !empty($earlyContacts['phones'])) {
+    try {
+        $eMail = $earlyContacts['emails'][0] ?? null;
+        $ePhone = $earlyContacts['phones'][0] ?? null;
+        ChatDB::saveLead($sessionId, $eMail, $ePhone, $userMessage, $ip);
+        LeadMailer::sendLeadNotification($sessionId, $userMessage, $ip, $userAgent);
+    } catch (Exception $e) {
+        // Silencioso
+    }
+}
+
 // CASO A: Si la sesión ya alcanzó el límite (mensaje >= 10) y el usuario está enviando su respuesta de contacto
 if ($currentSessionCount >= $maxQuestions) {
     $contacts = LeadMailer::extractContactInfo($userMessage);
@@ -88,8 +101,12 @@ if ($currentSessionCount >= $maxQuestions) {
         exit;
     }
 
-    // SI CONTIENE DATOS DE CONTACTO: Enviar notificación por correo al equipo comercial
+    // SI CONTIENE DATOS DE CONTACTO: Guardar en tabla leads de MySQL y notificar por correo
+    $leadEmail = $contacts['emails'][0] ?? null;
+    $leadPhone = $contacts['phones'][0] ?? null;
+
     try {
+        ChatDB::saveLead($sessionId, $leadEmail, $leadPhone, $userMessage, $ip);
         LeadMailer::sendLeadNotification($sessionId, $userMessage, $ip, $userAgent);
     } catch (Exception $e) {
         // Silencioso

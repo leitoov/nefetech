@@ -3,28 +3,40 @@ import { Layout } from './components/layout/Layout';
 import { Home } from './pages/Home';
 import { Terminos } from './pages/Terminos';
 import { Privacidad } from './pages/Privacidad';
+import { AdminPanel } from './pages/AdminPanel';
 
 function App() {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      setCurrentHash(hash);
+    const handleNavigation = () => {
+      setCurrentHash(window.location.hash);
+      setCurrentPath(window.location.pathname);
 
-      if (hash === '#terminos' || hash === '#privacidad') {
+      if (window.location.hash === '#terminos' || window.location.hash === '#privacidad') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (hash) {
-        const targetElement = document.querySelector(hash);
+      } else if (window.location.hash) {
+        const targetElement = document.querySelector(window.location.hash);
         if (targetElement) {
           targetElement.scrollIntoView({ behavior: 'smooth' });
         }
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleNavigation);
+    window.addEventListener('popstate', handleNavigation);
+    return () => {
+      window.removeEventListener('hashchange', handleNavigation);
+      window.removeEventListener('popstate', handleNavigation);
+    };
   }, []);
+
+  // Panel de administración en /admin o #admin
+  const isAdmin = currentPath.startsWith('/admin') || currentHash === '#admin';
+  if (isAdmin) {
+    return <AdminPanel />;
+  }
 
   // Enrutamiento según el hash de la URL
   let PageContent = <Home />;

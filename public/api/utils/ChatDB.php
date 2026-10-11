@@ -87,6 +87,33 @@ class ChatDB {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX (session_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS leads (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    session_id VARCHAR(64),
+                    email VARCHAR(255),
+                    phone VARCHAR(50),
+                    status ENUM('nuevo', 'en_contacto', 'presupuestado', 'cerrado') DEFAULT 'nuevo',
+                    lead_message TEXT,
+                    ip_address VARCHAR(45),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (session_id),
+                    INDEX (email),
+                    INDEX (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                CREATE TABLE IF NOT EXISTS lead_replies (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    lead_id BIGINT,
+                    sender VARCHAR(50) DEFAULT 'admin',
+                    channel ENUM('email', 'whatsapp') DEFAULT 'email',
+                    subject VARCHAR(255),
+                    message TEXT,
+                    recipient VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (lead_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
         }
     }
@@ -151,6 +178,91 @@ class ChatDB {
         $db = self::getConnection();
         $stmt = $db->prepare("SELECT sender, message, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
         $stmt->execute([$sessionId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Guarda un nuevo lead o actualiza uno existente para la misma sesión
+     */
+    public static function saveLead(string $sessionId, ?string $email, ?string $phone, string $leadMessage, string $ip = ''): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO leads (session_id, email, phone, lead_message, ip_address, status)
+            VALUES (?, ?, ?, ?, ?, 'nuevo')
+        ");
+        $stmt->execute([$sessionId, $email, $phone, $leadMessage, $ip]);
+        return (int)$db->lastInsertId();
+    }
+
+    /**
+     * Lista todos los leads ordenados por los más recientes, con contador de respuestas
+     */
+    public static function getAllLeads(): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $query = "
+            SELECT l.*, 
+                   (SELECT COUNT(*) FROM lead_replies r WHERE r.lead_id = l.id) as reply_count,
+                   (SELECT MAX(created_at) FROM lead_replies r WHERE r.lead_id = l.id) as last_reply_at
+            FROM leads l
+            ORDER BY l.created_at DESC
+        ";
+        return $db->query($query)->fetchAll();
+    }
+
+    /**
+     * Obtiene los datos detallados de un lead por su ID
+     */
+    public static function getLeadById(int $leadId): ?array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT * FROM leads WHERE id = ?");
+        $stmt->execute([$leadId]);
+        $lead = $stmt->fetch();
+        return $lead ?: null;
+    }
+
+    /**
+     * Actualiza el estado de un lead
+     */
+    public static function updateLeadStatus(int $leadId, string $status): void {
+        $db = self::getConnection();
+        $stmt = $db->prepare("UPDATE leads SET status = ? WHERE id = ?");
+        $stmt->execute([$status, $leadId]);
+    }
+
+    /**
+     * Guarda una respuesta enviada a un lead (por email o WhatsApp)
+     */
+    public static function saveLeadReply(int $leadId, string $channel, string $message, string $recipient, string $subject = ''): int {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("
+            INSERT INTO lead_replies (lead_id, sender, channel, subject, message, recipient)
+            VALUES (?, 'admin', ?, ?, ?, ?)
+        ");
+        $stmt->execute([$leadId, $channel, $subject, $message, $recipient]);
+
+        // Cambiar estado a 'en_contacto' si estaba en 'nuevo'
+        $db->prepare("UPDATE leads SET status = 'en_contacto' WHERE id = ? AND status = 'nuevo'")->execute([$leadId]);
+
+        return (int)$db->lastInsertId();
+    }
+
+    /**
+     * Obtiene el hilo de respuestas para un lead
+     */
+    public static function getLeadReplies(int $leadId): array {
+        $db = self::getConnection();
+        self::initTables();
+
+        $stmt = $db->prepare("SELECT * FROM lead_replies WHERE lead_id = ? ORDER BY created_at ASC");
+        $stmt->execute([$leadId]);
         return $stmt->fetchAll();
     }
 }

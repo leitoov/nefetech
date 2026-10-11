@@ -299,26 +299,26 @@ export function AdminPanel() {
     }
   };
 
-  // Cálculos matemáticos de la Calculadora con soporte de Combos y Stack Individual
-  let stackFactor = 1.0;
+  // Cálculos matemáticos de la Calculadora con soporte de Combos y Stack Individual por Precio/Hora
+  let stackRatePerHourUSD = Number(budgetConfig?.hourly_rate) || 35;
   let stackDescription = '';
 
   if (calcStackMode === 'combo') {
     const comboObj = budgetConfig?.stack_combos?.find(c => c.name === calcSelectedCombo);
-    stackFactor = comboObj ? Number(comboObj.factor) : 1.2;
+    stackRatePerHourUSD = comboObj ? Number(comboObj.price_per_hour_usd || (comboObj.factor ? comboObj.factor * 35 : 40)) : 40;
     stackDescription = comboObj ? `${comboObj.name} (${comboObj.frontend} + ${comboObj.backend})` : calcSelectedCombo;
   } else {
     // Modo individual / personalizado (mezclar front y back)
     const frontObj = budgetConfig?.frontend_techs?.find(f => f.name === calcSelectedFrontend);
     const backObj = budgetConfig?.backend_techs?.find(b => b.name === calcSelectedBackend);
-    const frontFactor = frontObj ? Number(frontObj.factor) : 1.15;
-    const backFactor = backObj ? Number(backObj.factor) : 1.15;
-    // Promedio ponderado o factor combinado
-    stackFactor = Number(((frontFactor + backFactor) / 2).toFixed(2));
-    stackDescription = `${calcSelectedFrontend} + ${calcSelectedBackend}`;
+    const frontRate = frontObj ? Number(frontObj.price_per_hour_usd || (frontObj.factor ? frontObj.factor * 35 : 38)) : 38;
+    const backRate = backObj ? Number(backObj.price_per_hour_usd || (backObj.factor ? backObj.factor * 35 : 40)) : 40;
+    // Promedio de tarifa horaria combinada
+    stackRatePerHourUSD = Math.round((frontRate + backRate) / 2);
+    stackDescription = `${calcSelectedFrontend} ($${frontRate}/h) + ${calcSelectedBackend} ($${backRate}/h)`;
   }
 
-  const costDevelopmentUSD = calcHours * calcHourlyRate * stackFactor;
+  const costDevelopmentUSD = calcHours * stackRatePerHourUSD;
 
   const selectedIaObj = budgetConfig?.ia_modules?.find(i => i.name === calcSelectedIA);
   const costIaUSD = selectedIaObj ? Number(selectedIaObj.cost_usd) : 0;
@@ -1289,14 +1289,18 @@ export function AdminPanel() {
                         onChange={(e) => setCalcSelectedCombo(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none"
                       >
-                        {budgetConfig?.stack_combos?.map((combo) => (
-                          <option key={combo.name} value={combo.name}>
-                            {combo.name} — ({combo.frontend} + {combo.backend}) [Factor x{combo.factor}]
-                          </option>
-                        ))}
+                        {budgetConfig?.stack_combos?.map((combo) => {
+                          const rate = combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40);
+                          return (
+                            <option key={combo.name} value={combo.name}>
+                              {combo.name} — ({combo.frontend} + {combo.backend}) [${rate} USD/h]
+                            </option>
+                          );
+                        })}
                       </select>
-                      <p className="text-[11px] text-slate-400 mt-1.5">
-                        Multiplicador de combo activo: <strong className="text-blue-600 font-mono">x{stackFactor}</strong>
+                      <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-between">
+                        <span>Tarifa horaria del combo:</span>
+                        <strong className="text-emerald-600 font-mono text-xs">${stackRatePerHourUSD} USD / hora</strong>
                       </p>
                     </div>
                   ) : (
@@ -1310,11 +1314,14 @@ export function AdminPanel() {
                           onChange={(e) => setCalcSelectedFrontend(e.target.value)}
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
                         >
-                          {budgetConfig?.frontend_techs?.map((front) => (
-                            <option key={front.name} value={front.name}>
-                              {front.name} (x{front.factor})
-                            </option>
-                          ))}
+                          {budgetConfig?.frontend_techs?.map((front) => {
+                            const rate = front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38);
+                            return (
+                              <option key={front.name} value={front.name}>
+                                {front.name} (${rate} USD/h)
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 
@@ -1327,15 +1334,19 @@ export function AdminPanel() {
                           onChange={(e) => setCalcSelectedBackend(e.target.value)}
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none"
                         >
-                          {budgetConfig?.backend_techs?.map((back) => (
-                            <option key={back.name} value={back.name}>
-                              {back.name} (x{back.factor})
-                            </option>
-                          ))}
+                          {budgetConfig?.backend_techs?.map((back) => {
+                            const rate = back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40);
+                            return (
+                              <option key={back.name} value={back.name}>
+                                {back.name} (${rate} USD/h)
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
-                      <div className="sm:col-span-2 text-[11px] text-slate-400">
-                        Multiplicador combinado calculado: <strong className="text-blue-600 font-mono">x{stackFactor}</strong> ({calcSelectedFrontend} + {calcSelectedBackend})
+                      <div className="sm:col-span-2 text-[11px] text-slate-400 flex items-center justify-between">
+                        <span>Tarifa horaria promedio:</span>
+                        <strong className="text-emerald-600 font-mono text-xs">${stackRatePerHourUSD} USD / hora</strong>
                       </div>
                     </div>
                   )}
@@ -1513,7 +1524,7 @@ export function AdminPanel() {
                       <tbody>
                         <tr className="border-b border-slate-100">
                           <td className="py-2.5 text-slate-600 font-medium">
-                            <div>Desarrollo ({calcHours}h x ${calcHourlyRate} x{stackFactor}):</div>
+                            <div>Desarrollo ({calcHours}h x ${stackRatePerHourUSD} USD/h):</div>
                             <div className="text-[10px] text-blue-600 font-semibold">{stackDescription}</div>
                           </td>
                           <td className="py-2.5 text-right font-bold font-mono text-slate-900">
@@ -1664,13 +1675,13 @@ export function AdminPanel() {
                         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
                           2. Tecnologías Frontend (Individuales)
                         </h3>
-                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías frontend con su multiplicador.</p>
+                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías frontend con su precio por hora en USD.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
                           const updated = [...(budgetConfig.frontend_techs || [])];
-                          updated.push({ name: 'Nuevo Frontend', factor: 1.10 });
+                          updated.push({ name: 'Nuevo Frontend', price_per_hour_usd: 35 });
                           setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
                         }}
                         className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
@@ -1681,52 +1692,55 @@ export function AdminPanel() {
                     </div>
 
                     <div className="space-y-2.5">
-                      {budgetConfig.frontend_techs?.map((front, idx) => (
-                        <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                          <input
-                            type="text"
-                            value={front.name}
-                            placeholder="Ej. React / Next.js"
-                            onChange={(e) => {
-                              const updated = [...budgetConfig.frontend_techs];
-                              updated[idx].name = e.target.value;
-                              setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
-                            }}
-                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 font-bold">x</span>
+                      {budgetConfig.frontend_techs?.map((front, idx) => {
+                        const val = front.price_per_hour_usd ?? (front.factor ? Math.round(front.factor * 35) : 38);
+                        return (
+                          <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                             <input
-                              type="number"
-                              step="0.05"
-                              min="0.5"
-                              max="3"
-                              value={front.factor}
+                              type="text"
+                              value={front.name}
+                              placeholder="Ej. React / Next.js"
                               onChange={(e) => {
                                 const updated = [...budgetConfig.frontend_techs];
-                                updated[idx].factor = Number(e.target.value);
+                                updated[idx].name = e.target.value;
                                 setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
                               }}
-                              className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                              className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
                             />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500 font-bold">$</span>
+                              <input
+                                type="number"
+                                min="5"
+                                max="500"
+                                value={val}
+                                onChange={(e) => {
+                                  const updated = [...budgetConfig.frontend_techs];
+                                  updated[idx].price_per_hour_usd = Number(e.target.value);
+                                  setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
+                                }}
+                                className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right font-mono"
+                              />
+                              <span className="text-[11px] text-slate-400 font-medium">USD/h</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (budgetConfig.frontend_techs.length <= 1) {
+                                  alert('Debes conservar al menos una tecnología frontend');
+                                  return;
+                                }
+                                const updated = budgetConfig.frontend_techs.filter((_, i) => i !== idx);
+                                setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Eliminar tecnología"
+                            >
+                              <Icon name="delete" size={16} />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (budgetConfig.frontend_techs.length <= 1) {
-                                alert('Debes conservar al menos una tecnología frontend');
-                                return;
-                              }
-                              const updated = budgetConfig.frontend_techs.filter((_, i) => i !== idx);
-                              setBudgetConfig({ ...budgetConfig, frontend_techs: updated });
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                            title="Eliminar tecnología"
-                          >
-                            <Icon name="delete" size={16} />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1737,13 +1751,13 @@ export function AdminPanel() {
                         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
                           3. Tecnologías Backend (Individuales)
                         </h3>
-                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías backend / APIs con su multiplicador.</p>
+                        <p className="text-[11px] text-slate-500">Agrega o quita tecnologías backend / APIs con su precio por hora en USD.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
                           const updated = [...(budgetConfig.backend_techs || [])];
-                          updated.push({ name: 'Nuevo Backend', factor: 1.15 });
+                          updated.push({ name: 'Nuevo Backend', price_per_hour_usd: 40 });
                           setBudgetConfig({ ...budgetConfig, backend_techs: updated });
                         }}
                         className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
@@ -1754,63 +1768,66 @@ export function AdminPanel() {
                     </div>
 
                     <div className="space-y-2.5">
-                      {budgetConfig.backend_techs?.map((back, idx) => (
-                        <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                          <input
-                            type="text"
-                            value={back.name}
-                            placeholder="Ej. Node.js / NestJS"
-                            onChange={(e) => {
-                              const updated = [...budgetConfig.backend_techs];
-                              updated[idx].name = e.target.value;
-                              setBudgetConfig({ ...budgetConfig, backend_techs: updated });
-                            }}
-                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 font-bold">x</span>
+                      {budgetConfig.backend_techs?.map((back, idx) => {
+                        const val = back.price_per_hour_usd ?? (back.factor ? Math.round(back.factor * 35) : 40);
+                        return (
+                          <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                             <input
-                              type="number"
-                              step="0.05"
-                              min="0.5"
-                              max="3"
-                              value={back.factor}
+                              type="text"
+                              value={back.name}
+                              placeholder="Ej. Node.js / NestJS"
                               onChange={(e) => {
                                 const updated = [...budgetConfig.backend_techs];
-                                updated[idx].factor = Number(e.target.value);
+                                updated[idx].name = e.target.value;
                                 setBudgetConfig({ ...budgetConfig, backend_techs: updated });
                               }}
-                              className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                              className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
                             />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500 font-bold">$</span>
+                              <input
+                                type="number"
+                                min="5"
+                                max="500"
+                                value={val}
+                                onChange={(e) => {
+                                  const updated = [...budgetConfig.backend_techs];
+                                  updated[idx].price_per_hour_usd = Number(e.target.value);
+                                  setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                                }}
+                                className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right font-mono"
+                              />
+                              <span className="text-[11px] text-slate-400 font-medium">USD/h</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (budgetConfig.backend_techs.length <= 1) {
+                                  alert('Debes conservar al menos una tecnología backend');
+                                  return;
+                                }
+                                const updated = budgetConfig.backend_techs.filter((_, i) => i !== idx);
+                                setBudgetConfig({ ...budgetConfig, backend_techs: updated });
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Eliminar backend"
+                            >
+                              <Icon name="delete" size={16} />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (budgetConfig.backend_techs.length <= 1) {
-                                alert('Debes conservar al menos una tecnología backend');
-                                return;
-                              }
-                              const updated = budgetConfig.backend_techs.filter((_, i) => i !== idx);
-                              setBudgetConfig({ ...budgetConfig, backend_techs: updated });
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                            title="Eliminar backend"
-                          >
-                            <Icon name="delete" size={16} />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* 4. Combos de Stack (Mezclar Front + Back con Multiplicador Especial) */}
+                  {/* 4. Combos de Stack (Mezclar Front + Back con Precio Fijo por Hora) */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
                           4. Combos de Stack (Front + Back Empaquetados)
                         </h3>
-                        <p className="text-[11px] text-slate-500">Crea combos combinando un lenguaje backend y uno frontend.</p>
+                        <p className="text-[11px] text-slate-500">Crea combos combinando backend + frontend con una tarifa por hora específica.</p>
                       </div>
                       <button
                         type="button"
@@ -1822,7 +1839,7 @@ export function AdminPanel() {
                             name: `Nuevo Combo Stack (${updated.length + 1})`,
                             frontend: defaultFront,
                             backend: defaultBack,
-                            factor: 1.25
+                            price_per_hour_usd: 45
                           });
                           setBudgetConfig({ ...budgetConfig, stack_combos: updated });
                         }}
@@ -1834,94 +1851,97 @@ export function AdminPanel() {
                     </div>
 
                     <div className="space-y-3">
-                      {budgetConfig.stack_combos?.map((combo, idx) => (
-                        <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="text"
-                              value={combo.name}
-                              placeholder="Nombre del combo (ej. MERN Stack)"
-                              onChange={(e) => {
-                                const updated = [...budgetConfig.stack_combos];
-                                updated[idx].name = e.target.value;
-                                setBudgetConfig({ ...budgetConfig, stack_combos: updated });
-                              }}
-                              className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
-                            />
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-slate-500 font-bold">Multiplicador: x</span>
+                      {budgetConfig.stack_combos?.map((combo, idx) => {
+                        const val = combo.price_per_hour_usd ?? (combo.factor ? Math.round(combo.factor * 35) : 42);
+                        return (
+                          <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                            <div className="flex items-center gap-3">
                               <input
-                                type="number"
-                                step="0.05"
-                                min="0.5"
-                                max="3"
-                                value={combo.factor}
+                                type="text"
+                                value={combo.name}
+                                placeholder="Nombre del combo (ej. MERN Stack)"
                                 onChange={(e) => {
                                   const updated = [...budgetConfig.stack_combos];
-                                  updated[idx].factor = Number(e.target.value);
+                                  updated[idx].name = e.target.value;
                                   setBudgetConfig({ ...budgetConfig, stack_combos: updated });
                                 }}
-                                className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                                className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
                               />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (budgetConfig.stack_combos.length <= 1) {
-                                  alert('Debes conservar al menos un combo de stack');
-                                  return;
-                                }
-                                const updated = budgetConfig.stack_combos.filter((_, i) => i !== idx);
-                                setBudgetConfig({ ...budgetConfig, stack_combos: updated });
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                              title="Eliminar combo"
-                            >
-                              <Icon name="delete" size={16} />
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                            <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                                Frontend del Combo:
-                              </span>
-                              <select
-                                value={combo.frontend}
-                                onChange={(e) => {
-                                  const updated = [...budgetConfig.stack_combos];
-                                  updated[idx].frontend = e.target.value;
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-slate-500 font-bold">Precio: $</span>
+                                <input
+                                  type="number"
+                                  min="5"
+                                  max="500"
+                                  value={val}
+                                  onChange={(e) => {
+                                    const updated = [...budgetConfig.stack_combos];
+                                    updated[idx].price_per_hour_usd = Number(e.target.value);
+                                    setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                  }}
+                                  className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right font-mono"
+                                />
+                                <span className="text-[11px] text-slate-400 font-medium">USD/h</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (budgetConfig.stack_combos.length <= 1) {
+                                    alert('Debes conservar al menos un combo de stack');
+                                    return;
+                                  }
+                                  const updated = budgetConfig.stack_combos.filter((_, i) => i !== idx);
                                   setBudgetConfig({ ...budgetConfig, stack_combos: updated });
                                 }}
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
+                                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                title="Eliminar combo"
                               >
-                                {budgetConfig.frontend_techs?.map((f) => (
-                                  <option key={f.name} value={f.name}>{f.name}</option>
-                                ))}
-                              </select>
+                                <Icon name="delete" size={16} />
+                              </button>
                             </div>
 
-                            <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                                Backend del Combo:
-                              </span>
-                              <select
-                                value={combo.backend}
-                                onChange={(e) => {
-                                  const updated = [...budgetConfig.stack_combos];
-                                  updated[idx].backend = e.target.value;
-                                  setBudgetConfig({ ...budgetConfig, stack_combos: updated });
-                                }}
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
-                              >
-                                {budgetConfig.backend_techs?.map((b) => (
-                                  <option key={b.name} value={b.name}>{b.name}</option>
-                                ))}
-                              </select>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                  Frontend del Combo:
+                                </span>
+                                <select
+                                  value={combo.frontend}
+                                  onChange={(e) => {
+                                    const updated = [...budgetConfig.stack_combos];
+                                    updated[idx].frontend = e.target.value;
+                                    setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                  }}
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
+                                >
+                                  {budgetConfig.frontend_techs?.map((f) => (
+                                    <option key={f.name} value={f.name}>{f.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                  Backend del Combo:
+                                </span>
+                                <select
+                                  value={combo.backend}
+                                  onChange={(e) => {
+                                    const updated = [...budgetConfig.stack_combos];
+                                    updated[idx].backend = e.target.value;
+                                    setBudgetConfig({ ...budgetConfig, stack_combos: updated });
+                                  }}
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
+                                >
+                                  {budgetConfig.backend_techs?.map((b) => (
+                                    <option key={b.name} value={b.name}>{b.name}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 

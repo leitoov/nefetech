@@ -290,45 +290,45 @@ class ChatDB {
         $defaults = [
             'hourly_rate' => 35, // USD por hora base
             'frontend_techs' => [
-                ['name' => 'React / Next.js', 'factor' => 1.15],
-                ['name' => 'Vue.js / Nuxt', 'factor' => 1.10],
-                ['name' => 'Angular', 'factor' => 1.20],
-                ['name' => 'HTML / CSS / Vanilla JS', 'factor' => 0.90],
-                ['name' => 'Flutter / React Native (Mobile)', 'factor' => 1.30]
+                ['name' => 'React / Next.js', 'price_per_hour_usd' => 38],
+                ['name' => 'Vue.js / Nuxt', 'price_per_hour_usd' => 35],
+                ['name' => 'Angular', 'price_per_hour_usd' => 40],
+                ['name' => 'HTML / CSS / Vanilla JS', 'price_per_hour_usd' => 28],
+                ['name' => 'Flutter / React Native (Mobile)', 'price_per_hour_usd' => 45]
             ],
             'backend_techs' => [
-                ['name' => 'Node.js / Express / NestJS', 'factor' => 1.15],
-                ['name' => 'PHP / Laravel', 'factor' => 1.05],
-                ['name' => 'Python / FastAPI / Django', 'factor' => 1.25],
-                ['name' => 'Go / Golang', 'factor' => 1.30],
-                ['name' => 'Java / Spring Boot', 'factor' => 1.30],
-                ['name' => '.NET / C#', 'factor' => 1.25],
-                ['name' => 'Serverless / Firebase / Supabase', 'factor' => 1.00]
+                ['name' => 'Node.js / Express / NestJS', 'price_per_hour_usd' => 40],
+                ['name' => 'PHP / Laravel', 'price_per_hour_usd' => 35],
+                ['name' => 'Python / FastAPI / Django', 'price_per_hour_usd' => 45],
+                ['name' => 'Go / Golang', 'price_per_hour_usd' => 50],
+                ['name' => 'Java / Spring Boot', 'price_per_hour_usd' => 48],
+                ['name' => '.NET / C#', 'price_per_hour_usd' => 45],
+                ['name' => 'Serverless / Firebase / Supabase', 'price_per_hour_usd' => 35]
             ],
             'stack_combos' => [
                 [
                     'name' => 'MERN (React + Node.js)',
                     'frontend' => 'React / Next.js',
                     'backend' => 'Node.js / Express / NestJS',
-                    'factor' => 1.20
+                    'price_per_hour_usd' => 42
                 ],
                 [
                     'name' => 'Fullstack Laravel (Laravel + React/Vue)',
                     'frontend' => 'React / Next.js',
                     'backend' => 'PHP / Laravel',
-                    'factor' => 1.15
+                    'price_per_hour_usd' => 38
                 ],
                 [
                     'name' => 'AI Stack (React + Python FastAPI)',
                     'frontend' => 'React / Next.js',
                     'backend' => 'Python / FastAPI / Django',
-                    'factor' => 1.30
+                    'price_per_hour_usd' => 48
                 ],
                 [
                     'name' => 'Serverless Jamstack (Next.js + Supabase)',
                     'frontend' => 'React / Next.js',
                     'backend' => 'Serverless / Firebase / Supabase',
-                    'factor' => 1.10
+                    'price_per_hour_usd' => 38
                 ]
             ],
             'ia_modules' => [

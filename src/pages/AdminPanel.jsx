@@ -72,6 +72,7 @@ export function AdminPanel() {
   const [calcServerMonths, setCalcServerMonths] = useState(12);
   const [calcSelectedDesign, setCalcSelectedDesign] = useState('UI Kit Moderno & Responsive (Tailwind)');
   const [calcMarginPercent, setCalcMarginPercent] = useState(15);
+  const [calcApplyIva, setCalcApplyIva] = useState(false); // Switch IVA 21% (Factura A / B)
 
   // Manejo de Login
   const handleLogin = async (e) => {
@@ -282,10 +283,13 @@ export function AdminPanel() {
           domain_included: calcIncludeDomain,
           domain_cost_usd: costDomainUSD,
           margin_percent: calcMarginPercent,
+          apply_iva: calcApplyIva,
+          iva_usd: ivaUSD,
+          net_usd: netUSD,
           total_usd: totalUSD,
           dolar_blue_rate: blueRate,
           total_ars: totalARS,
-          full_summary: `Cotización formal: ${calcHours}h en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}, infraestructura ($${costServerUSD + costDomainUSD} USD). Total: $${totalUSD.toFixed(2)} USD / $${totalARS.toLocaleString('es-AR')} ARS (Blue $${blueRate}).`
+          full_summary: `Cotización formal: ${calcHours}h en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}, infraestructura ($${costServerUSD + costDomainUSD} USD). ${calcApplyIva ? `Neto: $${netUSD.toFixed(0)} USD + IVA 21%: $${ivaUSD.toFixed(0)} USD = Total: $${totalUSD.toFixed(0)} USD` : `Total: $${totalUSD.toFixed(0)} USD`} / $${totalARS.toLocaleString('es-AR')} ARS (Blue $${blueRate}).`
         };
       }
 
@@ -418,9 +422,13 @@ export function AdminPanel() {
 
   const subtotalUSD = costDevelopmentUSD + costIaUSD + costAsesoriaUSD + costDomainUSD + costServerUSD + costDesignUSD;
   const marginUSD = (subtotalUSD * (calcMarginPercent / 100));
-  const totalUSD = subtotalUSD + marginUSD;
+  const netUSD = subtotalUSD + marginUSD;
+  const ivaUSD = calcApplyIva ? (netUSD * 0.21) : 0;
+  const totalUSD = netUSD + ivaUSD;
 
   const blueRate = Number(dolarRate.blue) || 1540;
+  const netARS = netUSD * blueRate;
+  const ivaARS = ivaUSD * blueRate;
   const totalARS = totalUSD * blueRate;
 
   // Estadísticas para el Dashboard Gráfico
@@ -1142,8 +1150,8 @@ export function AdminPanel() {
                           checked={attachCurrentQuotation}
                           onChange={(e) => {
                             setAttachCurrentQuotation(e.target.checked);
-                            if (e.target.checked && !replyMessage.includes('Presupuesto Estimado:')) {
-                              const cotizText = `\n\n--- PRESUPUESTO FORMAL ESTIMADO ---\n• Desarrollo (${calcHours}h a $${stackRatePerHourUSD}/h): ${stackDescription}\n• Asesoría: ${calcSelectedAsesoria} ($${costAsesoriaUSD} USD)\n• Módulo IA: ${calcSelectedIA} ($${costIaUSD} USD)\n• Diseño UI/UX: ${calcSelectedDesign} ($${costDesignUSD} USD)\n• Servidor + Dominio: $${costServerUSD + costDomainUSD} USD\n• Total Estimado: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización dólar blue $${blueRate}).`;
+                            if (e.target.checked && !replyMessage.includes('PRESUPUESTO FORMAL ESTIMADO')) {
+                              const cotizText = `\n\n--- PRESUPUESTO FORMAL ESTIMADO ---\n• Desarrollo (${calcHours}h a $${stackRatePerHourUSD}/h): ${stackDescription}\n• Asesoría: ${calcSelectedAsesoria} ($${costAsesoriaUSD} USD)\n• Módulo IA: ${calcSelectedIA} ($${costIaUSD} USD)\n• Diseño UI/UX: ${calcSelectedDesign} ($${costDesignUSD} USD)\n• Servidor + Dominio: $${costServerUSD + costDomainUSD} USD\n${calcApplyIva ? `• Subtotal Neto: $${netUSD.toFixed(0)} USD\n• IVA (21% Factura A/B): $${ivaUSD.toFixed(0)} USD\n• TOTAL FINAL: $${totalUSD.toFixed(0)} USD` : `• TOTAL ESTIMADO NETO: $${totalUSD.toFixed(0)} USD`}\n• Equivalente en Pesos: aprox. $${totalARS.toLocaleString('es-AR')} ARS (Dólar Blue $${blueRate}).`;
                               setReplyMessage((prev) => prev ? prev + cotizText : cotizText.trim());
                             }
                           }}
@@ -1623,6 +1631,28 @@ export function AdminPanel() {
                       <span>40%</span>
                     </div>
                   </div>
+
+                  {/* Switch de Aplicación de IVA (21%) Factura A / B */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Icon name="receipt_long" size={16} className="text-blue-600" />
+                        <span>Aplicar IVA (21%) — Facturación Oficial</span>
+                      </div>
+                      <span className="text-[11px] text-slate-500 block mt-0.5">
+                        {calcApplyIva ? 'Presupuesto formal discriminado con IVA (Factura A / B)' : 'Presupuesto neto sin IVA discriminado'}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={calcApplyIva}
+                        onChange={(e) => setCalcApplyIva(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1640,7 +1670,7 @@ export function AdminPanel() {
                         </h3>
                       </div>
                       <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">
-                        Uso Interno
+                        {calcApplyIva ? 'Con Factura (IVA 21%)' : 'Neto / Uso Interno'}
                       </span>
                     </div>
 
@@ -1682,7 +1712,7 @@ export function AdminPanel() {
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 text-slate-500">
-                          <td className="py-2.5">Subtotal Base:</td>
+                          <td className="py-2.5">Subtotal Costos Directos:</td>
                           <td className="py-2.5 text-right font-mono font-semibold">
                             ${subtotalUSD.toLocaleString()} USD
                           </td>
@@ -1693,12 +1723,27 @@ export function AdminPanel() {
                             +${marginUSD.toLocaleString()} USD
                           </td>
                         </tr>
+                        <tr className="border-b border-slate-200 text-slate-800 font-bold">
+                          <td className="py-2.5">Subtotal Neto:</td>
+                          <td className="py-2.5 text-right font-mono">
+                            ${netUSD.toLocaleString()} USD
+                          </td>
+                        </tr>
+                        {calcApplyIva && (
+                          <tr className="border-b border-slate-200 text-indigo-700 font-bold bg-indigo-50/50">
+                            <td className="py-2.5 px-2">IVA (21%):</td>
+                            <td className="py-2.5 px-2 text-right font-mono">
+                              +${ivaUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
 
                     <div className="bg-slate-900 text-white p-5 rounded-2xl mb-4 shadow-md">
-                      <div className="text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1">
-                        Total Presupuestado en USD
+                      <div className="text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1 flex items-center justify-between">
+                        <span>Total Presupuestado en USD</span>
+                        {calcApplyIva && <span className="text-indigo-400 text-[10px]">IVA 21% INCLUIDO</span>}
                       </div>
                       <div className="text-3xl font-black font-mono text-emerald-400">
                         ${totalUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1715,13 +1760,18 @@ export function AdminPanel() {
                         ${totalARS.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         <span className="text-xs text-emerald-700 font-normal ml-1">ARS</span>
                       </div>
+                      {calcApplyIva && (
+                        <div className="text-[10px] text-emerald-700 mt-1 font-mono">
+                          Neto: ${netARS.toLocaleString('es-AR', { maximumFractionDigits: 0 })} + IVA: ${ivaARS.toLocaleString('es-AR', { maximumFractionDigits: 0 })} ARS
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-slate-100 space-y-2">
                     <button
                       onClick={() => {
-                        const copyText = `Propuesta estimada Nefetech: ${calcHours} horas de desarrollo en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: $${totalUSD.toFixed(0)} USD (o aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización blue).`;
+                        const copyText = `Propuesta estimada Nefetech: ${calcHours} horas de desarrollo en ${stackDescription}, ${calcSelectedAsesoria}, ${calcSelectedIA}, diseño ${calcSelectedDesign}. Inversión estimada: ${calcApplyIva ? `Subtotal Neto: $${netUSD.toFixed(0)} USD + IVA (21%): $${ivaUSD.toFixed(0)} USD = Total Final: $${totalUSD.toFixed(0)} USD` : `Total: $${totalUSD.toFixed(0)} USD`} (aprox. $${totalARS.toLocaleString('es-AR')} ARS cotización dólar blue $${blueRate}).`;
                         navigator.clipboard.writeText(copyText);
                         alert('¡Resumen de presupuesto copiado al portapapeles!');
                       }}

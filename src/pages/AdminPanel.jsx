@@ -49,6 +49,7 @@ export function AdminPanel() {
   const [percentageIncreaseInput, setPercentageIncreaseInput] = useState(10);
   const [isApplyingIncrease, setIsApplyingIncrease] = useState(false);
   const [increaseSuccessMsg, setIncreaseSuccessMsg] = useState('');
+  const [saveConfigMsg, setSaveConfigMsg] = useState('');
 
   // Modo de la Calculadora: 'manual' o 'ia'
   const [calcMode, setCalcMode] = useState('ia');

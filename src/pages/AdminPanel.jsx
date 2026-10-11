@@ -51,6 +51,7 @@ export function AdminPanel() {
   const [increaseSuccessMsg, setIncreaseSuccessMsg] = useState('');
   const [saveConfigMsg, setSaveConfigMsg] = useState('');
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
+  const [activeHistorySubTab, setActiveHistorySubTab] = useState({});
 
   // Modo de la Calculadora: 'manual' o 'ia'
   const [calcMode, setCalcMode] = useState('ia');
@@ -2608,8 +2609,13 @@ export function AdminPanel() {
                                   </span>
                                 </div>
 
-                                {/* Función de ayuda visual para calcular y mostrar precio previo en gris y nuevo en verde */}
+                                {/* NAVEGACIÓN POR SUB-PESTAÑAS DENTRO DEL REGISTRO PARA LIMPIAR LA VISTA */}
                                 {(() => {
+                                  const currentSubTab = activeHistorySubTab[h.id] || 'general';
+                                  const setSubTab = (tabKey) => {
+                                    setActiveHistorySubTab(prev => ({ ...prev, [h.id]: tabKey }));
+                                  };
+
                                   const pct = h.action_type === 'percentage_increase' ? Number(h.percentage_applied || 0) : null;
                                   
                                   const renderPriceComparison = (newPrice, unit = 'USD/h') => {
@@ -2621,145 +2627,258 @@ export function AdminPanel() {
                                             ${oldPrice}
                                           </span>
                                           <span className="text-slate-300 text-[10px]">→</span>
-                                          <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60" title={`Precio con aumento +${pct}%`}>
+                                          <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 shadow-2xs" title={`Precio con aumento +${pct}%`}>
                                             ${newPrice} {unit}
                                           </span>
                                         </div>
                                       );
                                     }
                                     return (
-                                      <span className="font-mono font-bold text-emerald-600 shrink-0 text-xs">
+                                      <span className="font-mono font-bold text-emerald-600 shrink-0 text-xs bg-emerald-50/50 px-2 py-0.5 rounded-md">
                                         ${newPrice} {unit}
                                       </span>
                                     );
                                   };
 
                                   return (
-                                    <>
-                                      {/* 1. Tarifa Base e Infraestructura */}
-                                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tarifa Base</span>
-                                          {renderPriceComparison(snapshot.hourly_rate, 'USD/h')}
-                                        </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Dominio Anual</span>
-                                          {renderPriceComparison(snapshot.infrastructure?.domain_annual_usd || 18, 'USD')}
-                                        </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Hosting Básico</span>
-                                          {renderPriceComparison(snapshot.infrastructure?.server_basic_monthly_usd || 15, 'USD/m')}
-                                        </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">VPS Mensual</span>
-                                          {renderPriceComparison(snapshot.infrastructure?.server_vps_monthly_usd || 35, 'USD/m')}
-                                        </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Cloud Dedicado</span>
-                                          {renderPriceComparison(snapshot.infrastructure?.server_cloud_dedicated_monthly_usd || 90, 'USD/m')}
-                                        </div>
+                                    <div className="space-y-4">
+                                      {/* SELECTOR DE SUB-PESTAÑAS */}
+                                      <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl max-w-fit">
+                                        <button
+                                          type="button"
+                                          onClick={() => setSubTab('general')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            currentSubTab === 'general'
+                                              ? 'bg-white text-slate-900 shadow-xs'
+                                              : 'text-slate-600 hover:text-slate-900'
+                                          }`}
+                                        >
+                                          <Icon name="tune" size={14} className={currentSubTab === 'general' ? 'text-blue-600' : 'text-slate-400'} />
+                                          <span>Tarifa Base & Servidores</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setSubTab('lenguajes')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            currentSubTab === 'lenguajes'
+                                              ? 'bg-white text-slate-900 shadow-xs'
+                                              : 'text-slate-600 hover:text-slate-900'
+                                          }`}
+                                        >
+                                          <Icon name="code" size={14} className={currentSubTab === 'lenguajes' ? 'text-blue-600' : 'text-slate-400'} />
+                                          <span>Lenguajes & Frameworks ({((snapshot.frontend_techs?.length || 0) + (snapshot.backend_techs?.length || 0))})</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setSubTab('combos')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            currentSubTab === 'combos'
+                                              ? 'bg-white text-slate-900 shadow-xs'
+                                              : 'text-slate-600 hover:text-slate-900'
+                                          }`}
+                                        >
+                                          <Icon name="layers" size={14} className={currentSubTab === 'combos' ? 'text-indigo-600' : 'text-slate-400'} />
+                                          <span>Combos de Stack ({snapshot.stack_combos?.length || 0})</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setSubTab('ia_asesoria')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            currentSubTab === 'ia_asesoria'
+                                              ? 'bg-white text-slate-900 shadow-xs'
+                                              : 'text-slate-600 hover:text-slate-900'
+                                          }`}
+                                        >
+                                          <Icon name="smart_toy" size={14} className={currentSubTab === 'ia_asesoria' ? 'text-purple-600' : 'text-slate-400'} />
+                                          <span>IA & Asesoría ({((snapshot.ia_modules?.length || 0) + (snapshot.consultoria_modules?.length || 0))})</span>
+                                        </button>
                                       </div>
 
-                                      {/* 2. Stack Combos */}
-                                      {snapshot.stack_combos && snapshot.stack_combos.length > 0 && (
-                                        <div>
-                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Icon name="layers" size={14} className="text-indigo-600" />
-                                            <span>Combos de Stack (Precio / Hora)</span>
-                                          </h4>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                                            {snapshot.stack_combos.map((combo, cIdx) => {
-                                              const newRate = combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40);
-                                              return (
-                                                <div key={cIdx} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                                                  <div className="min-w-0 pr-2">
-                                                    <span className="font-bold text-slate-800 block truncate">{combo.name}</span>
-                                                    <span className="text-[10px] text-slate-400 truncate block">{combo.frontend} + {combo.backend}</span>
-                                                  </div>
-                                                  {renderPriceComparison(newRate, 'USD/h')}
-                                                </div>
-                                              );
-                                            })}
+                                      {/* CONTENIDO TAB 1: TARIFA BASE & SERVIDORES */}
+                                      {currentSubTab === 'general' && (
+                                        <div className="space-y-4 animate-in fade-in duration-150">
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-700">Tarifa Base General</span>
+                                                <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Por Hora</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-400">Tarifa horaria inicial de referencia para el equipo de desarrollo.</p>
+                                              <div className="pt-1">{renderPriceComparison(snapshot.hourly_rate, 'USD/h')}</div>
+                                            </div>
+
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-700">Dominio Anual</span>
+                                                <span className="text-[10px] uppercase font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">Anual</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-400">Renovación de dominios internacionales (.com / .online / .tech).</p>
+                                              <div className="pt-1">{renderPriceComparison(snapshot.infrastructure?.domain_annual_usd || 18, 'USD')}</div>
+                                            </div>
+
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-700">Hosting Compartido</span>
+                                                <span className="text-[10px] uppercase font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">Mensual</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-400">Plataforma de hosting estándar para sitios web y landing pages.</p>
+                                              <div className="pt-1">{renderPriceComparison(snapshot.infrastructure?.server_basic_monthly_usd || 15, 'USD/m')}</div>
+                                            </div>
+
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-700">Servidor VPS</span>
+                                                <span className="text-[10px] uppercase font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">Mensual</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-400">Servidor virtual dedicado para sistemas y bases de datos intermedias.</p>
+                                              <div className="pt-1">{renderPriceComparison(snapshot.infrastructure?.server_vps_monthly_usd || 35, 'USD/m')}</div>
+                                            </div>
+
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2 sm:col-span-2 lg:col-span-1">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-700">Cloud Dedicado</span>
+                                                <span className="text-[10px] uppercase font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">Mensual</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-400">Instancia de alto rendimiento para tráfico intensivo y modelos de IA.</p>
+                                              <div className="pt-1">{renderPriceComparison(snapshot.infrastructure?.server_cloud_dedicated_monthly_usd || 90, 'USD/m')}</div>
+                                            </div>
                                           </div>
                                         </div>
                                       )}
 
-                                      {/* 3. Lenguajes Individuales (Frontend y Backend) */}
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Frontend */}
-                                        <div>
-                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Icon name="code" size={14} className="text-blue-600" />
-                                            <span>Tecnologías Frontend (USD / Hora)</span>
-                                          </h4>
-                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                            {snapshot.frontend_techs?.map((front, fIdx) => {
-                                              const newRate = front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38);
-                                              return (
-                                                <div key={fIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                                  <span className="font-medium text-slate-800">{front.name}</span>
-                                                  {renderPriceComparison(newRate, 'USD/h')}
+                                      {/* CONTENIDO TAB 2: LENGUAJES & FRAMEWORKS */}
+                                      {currentSubTab === 'lenguajes' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
+                                          {/* Frontend */}
+                                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Icon name="code" size={16} className="text-blue-600" />
+                                                <span>Tecnologías Frontend</span>
+                                              </h4>
+                                              <span className="text-[10px] text-slate-400 font-bold uppercase">USD / Hora</span>
+                                            </div>
+
+                                            <div className="divide-y divide-slate-100">
+                                              {snapshot.frontend_techs?.map((front, fIdx) => {
+                                                const newRate = front.price_per_hour_usd || (front.factor ? Math.round(front.factor * 35) : 38);
+                                                return (
+                                                  <div key={fIdx} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/50 px-1 rounded-lg">
+                                                    <span className="font-semibold text-slate-800">{front.name}</span>
+                                                    {renderPriceComparison(newRate, 'USD/h')}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+
+                                          {/* Backend */}
+                                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Icon name="terminal" size={16} className="text-indigo-600" />
+                                                <span>Tecnologías Backend</span>
+                                              </h4>
+                                              <span className="text-[10px] text-slate-400 font-bold uppercase">USD / Hora</span>
+                                            </div>
+
+                                            <div className="divide-y divide-slate-100">
+                                              {snapshot.backend_techs?.map((back, bIdx) => {
+                                                const newRate = back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40);
+                                                return (
+                                                  <div key={bIdx} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/50 px-1 rounded-lg">
+                                                    <span className="font-semibold text-slate-800">{back.name}</span>
+                                                    {renderPriceComparison(newRate, 'USD/h')}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* CONTENIDO TAB 3: COMBOS DE STACK */}
+                                      {currentSubTab === 'combos' && (
+                                        <div className="space-y-3 animate-in fade-in duration-150">
+                                          {!snapshot.stack_combos || snapshot.stack_combos.length === 0 ? (
+                                            <div className="p-6 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+                                              No hay combos registrados en este cambio.
+                                            </div>
+                                          ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              {snapshot.stack_combos.map((combo, cIdx) => {
+                                                const newRate = combo.price_per_hour_usd || (combo.factor ? Math.round(combo.factor * 35) : 40);
+                                                return (
+                                                  <div key={cIdx} className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-colors">
+                                                    <div>
+                                                      <span className="font-bold text-slate-900 text-sm block leading-snug">{combo.name}</span>
+                                                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md font-medium">{combo.frontend}</span>
+                                                        <span>+</span>
+                                                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">{combo.backend}</span>
+                                                      </div>
+                                                    </div>
+                                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                                      <span className="text-[11px] text-slate-400 font-semibold">Tarifa empaquetada:</span>
+                                                      {renderPriceComparison(newRate, 'USD/h')}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* CONTENIDO TAB 4: IA & ASESORÍA */}
+                                      {currentSubTab === 'ia_asesoria' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
+                                          {/* Módulos de IA */}
+                                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Icon name="smart_toy" size={16} className="text-purple-600" />
+                                                <span>Inteligencia Artificial</span>
+                                              </h4>
+                                              <span className="text-[10px] text-slate-400 font-bold uppercase">Costo Fijo USD</span>
+                                            </div>
+
+                                            <div className="divide-y divide-slate-100">
+                                              {snapshot.ia_modules?.map((ia, iaIdx) => (
+                                                <div key={iaIdx} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/50 px-1 rounded-lg">
+                                                  <span className="font-semibold text-slate-800 pr-2">{ia.name}</span>
+                                                  {renderPriceComparison(ia.cost_usd, 'USD')}
                                                 </div>
-                                              );
-                                            })}
+                                              ))}
+                                            </div>
                                           </div>
-                                        </div>
 
-                                        {/* Backend */}
-                                        <div>
-                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Icon name="terminal" size={14} className="text-indigo-600" />
-                                            <span>Tecnologías Backend (USD / Hora)</span>
-                                          </h4>
-                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                            {snapshot.backend_techs?.map((back, bIdx) => {
-                                              const newRate = back.price_per_hour_usd || (back.factor ? Math.round(back.factor * 35) : 40);
-                                              return (
-                                                <div key={bIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                                  <span className="font-medium text-slate-800">{back.name}</span>
-                                                  {renderPriceComparison(newRate, 'USD/h')}
+                                          {/* Asesoría y Consultoría */}
+                                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Icon name="psychology" size={16} className="text-amber-600" />
+                                                <span>Asesoría Tecnológica</span>
+                                              </h4>
+                                              <span className="text-[10px] text-slate-400 font-bold uppercase">Costo Fijo USD</span>
+                                            </div>
+
+                                            <div className="divide-y divide-slate-100">
+                                              {snapshot.consultoria_modules?.map((c, cIdx) => (
+                                                <div key={cIdx} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/50 px-1 rounded-lg">
+                                                  <span className="font-semibold text-slate-800 pr-2">{c.name}</span>
+                                                  {renderPriceComparison(c.cost_usd, 'USD')}
                                                 </div>
-                                              );
-                                            })}
+                                              ))}
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
+                                      )}
 
-                                      {/* 4. Módulos de IA y Asesoría */}
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Módulos de IA */}
-                                        <div>
-                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Icon name="smart_toy" size={14} className="text-purple-600" />
-                                            <span>Módulos de Inteligencia Artificial (Costo Fijo)</span>
-                                          </h4>
-                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                            {snapshot.ia_modules?.map((ia, iaIdx) => (
-                                              <div key={iaIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                                <span className="font-medium text-slate-800 truncate pr-2">{ia.name}</span>
-                                                {renderPriceComparison(ia.cost_usd, 'USD')}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-
-                                        {/* Asesoría y Consultoría */}
-                                        <div>
-                                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Icon name="psychology" size={14} className="text-amber-600" />
-                                            <span>Módulos de Asesoría (Costo Fijo)</span>
-                                          </h4>
-                                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                                            {snapshot.consultoria_modules?.map((c, cIdx) => (
-                                              <div key={cIdx} className="p-2.5 px-3 flex items-center justify-between text-xs">
-                                                <span className="font-medium text-slate-800 truncate pr-2">{c.name}</span>
-                                                {renderPriceComparison(c.cost_usd, 'USD')}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </>
+                                    </div>
                                   );
                                 })()}
 

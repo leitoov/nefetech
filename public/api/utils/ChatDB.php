@@ -53,6 +53,8 @@ class ChatDB {
                     ip_address TEXT,
                     user_agent TEXT,
                     message_count INTEGER DEFAULT 0,
+                    contact_attempts INTEGER DEFAULT 0,
+                    is_closed INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
@@ -148,6 +150,8 @@ class ChatDB {
                     ip_address VARCHAR(45),
                     user_agent TEXT,
                     message_count INT DEFAULT 0,
+                    contact_attempts INT DEFAULT 0,
+                    is_closed TINYINT(1) DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -323,23 +327,63 @@ class ChatDB {
      */
     public static function getSession(string $sessionId, string $ip = '', string $userAgent = ''): array {
         $db = self::getConnection();
+        // Migración transparente si las columnas no existen aún
+        try {
+            $db->exec("ALTER TABLE chat_sessions ADD COLUMN contact_attempts INT DEFAULT 0");
+        } catch (Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE chat_sessions ADD COLUMN is_closed INT DEFAULT 0");
+        } catch (Exception $e) {}
+
         $stmt = $db->prepare("SELECT * FROM chat_sessions WHERE session_id = ?");
         $stmt->execute([$sessionId]);
         $session = $stmt->fetch();
 
         if (!$session) {
             $stmt = $db->prepare("
-                INSERT INTO chat_sessions (session_id, ip_address, user_agent, message_count) 
-                VALUES (?, ?, ?, 0)
+                INSERT INTO chat_sessions (session_id, ip_address, user_agent, message_count, contact_attempts, is_closed) 
+                VALUES (?, ?, ?, 0, 0, 0)
             ");
             $stmt->execute([$sessionId, $ip, substr($userAgent, 0, 255)]);
             return [
                 'session_id' => $sessionId,
-                'message_count' => 0
+                'message_count' => 0,
+                'contact_attempts' => 0,
+                'is_closed' => 0
             ];
         }
 
         return $session;
+    }
+
+    /**
+     * Incrementa la cuenta de intentos de pedir datos de contacto
+     */
+    public static function incrementContactAttempts(string $sessionId): int {
+        $db = self::getConnection();
+        $stmt = $db->prepare("
+            UPDATE chat_sessions 
+            SET contact_attempts = COALESCE(contact_attempts, 0) + 1, last_activity = CURRENT_TIMESTAMP 
+            WHERE session_id = ?
+        ");
+        $stmt->execute([$sessionId]);
+
+        $stmt = $db->prepare("SELECT contact_attempts FROM chat_sessions WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Cierra definitivamente una sesión de chat
+     */
+    public static function closeSession(string $sessionId): void {
+        $db = self::getConnection();
+        $stmt = $db->prepare("
+            UPDATE chat_sessions 
+            SET is_closed = 1, last_activity = CURRENT_TIMESTAMP 
+            WHERE session_id = ?
+        ");
+        $stmt->execute([$sessionId]);
     }
 
     /**

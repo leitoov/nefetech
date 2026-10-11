@@ -172,12 +172,12 @@ export function AIChatModal({ isOpen, onClose }) {
     try {
       const data = await sendChatMessage(trimmed);
 
-      // Si el bot solicita datos de contacto para cerrar la propuesta (límite de 10 alcanzado)
+      // Si el bot solicita datos de contacto para cerrar la propuesta
       if (data.ask_contact_info) {
         setIsAskingContact(true);
         setIsLimitReached(false);
-      } else if (data.lead_submitted || data.limit_reached) {
-        // Solo cuando ya envió el mensaje final con datos se marca completado
+      } else if (data.lead_submitted || data.session_closed || data.limit_reached) {
+        // Cuando ya envió datos o se cerró la conversación tras 2 intentos
         setIsLimitReached(true);
         setIsAskingContact(false);
         localStorage.setItem('nefetech_chat_limit_reached', 'true');

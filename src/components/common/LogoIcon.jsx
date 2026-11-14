@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function LogoIcon({ size = 36, className = '' }) {
   return (
     <svg
@@ -12,12 +10,12 @@ export function LogoIcon({ size = 36, className = '' }) {
     >
       <defs>
         <linearGradient id="logo-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#2563eb" />
-          <stop offset="100%" stop-color="#4f46e5" />
+          <stop offset="0%" stopColor="#304cff" />
+          <stop offset="100%" stopColor="#4f46e5" />
         </linearGradient>
         <linearGradient id="logo-cursor" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#60a5fa" />
-          <stop offset="100%" stop-color="#93c5fd" />
+          <stop offset="0%" stopColor="#dcef98" />
+          <stop offset="100%" stopColor="#93c5fd" />
         </linearGradient>
       </defs>
 

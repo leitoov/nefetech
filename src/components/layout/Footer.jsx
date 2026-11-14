@@ -1,4 +1,4 @@
-import logoNefetech from '../../assets/nefetech-logo.png';
+import { LogoIcon } from '../common/LogoIcon';
 import { WHATSAPP_URL } from '../../utils/constants';
 
 export function Footer() {
@@ -7,12 +7,11 @@ export function Footer() {
       <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-5 py-10 sm:px-8">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col items-start gap-2">
-            <a href="#inicio" className="inline-block">
-              <img
-                src={logoNefetech}
-                alt="Nefetech"
-                className="h-12 w-auto sm:h-14 object-contain"
-              />
+            <a href="#inicio" className="inline-flex items-center gap-2.5 group">
+              <LogoIcon size={32} className="group-hover:scale-105" />
+              <span className="text-[19px] font-bold tracking-tight text-[#20251f]">
+                Nefe<span className="text-[#304cff]">tech</span>
+              </span>
             </a>
             <p className="max-w-md text-[13px] leading-relaxed text-[#656b63]">
               Páginas web, chats con Inteligencia Artificial y automatizaciones simples para que tu negocio venda más y trabaje menos.

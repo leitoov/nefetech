@@ -22,13 +22,19 @@ require_once __DIR__ . '/../utils/EnvLoader.php';
 require_once __DIR__ . '/../utils/JWT.php';
 EnvLoader::load();
 
-$secret = EnvLoader::get('JWT_SECRET', 'nefetech_jwt_super_secret_key_2026');
+$secret = EnvLoader::get('JWT_SECRET', '');
 
 if (file_exists(__DIR__ . '/../config.php')) {
     include __DIR__ . '/../config.php';
     if (isset($CONFIG['JWT_SECRET'])) {
         $secret = $CONFIG['JWT_SECRET'];
     }
+}
+
+if (empty($secret)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'JWT_SECRET no configurado en el servidor']);
+    exit;
 }
 
 // Leer cliente o sesión

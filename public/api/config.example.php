@@ -10,7 +10,7 @@ $CONFIG = [
     'GEMINI_MODEL'   => 'gemini-3.5-flash-lite',
 
     // Secreto JWT
-    'JWT_SECRET'     => 'nefetech_jwt_super_secret_key_2026',
+    'JWT_SECRET'     => 'tu_secreto_jwt_largo_y_aleatorio',
 
     // Base de datos (opcional si usas .env)
     'DB_HOST'        => 'localhost',

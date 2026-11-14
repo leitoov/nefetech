@@ -22,8 +22,8 @@ EnvLoader::load();
 
 $action = $_GET['action'] ?? '';
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
-$apiKey = getenv('GEMINI_API_KEY') ?: 'AQ.Ab8RN6JubsWRM_13vrwiZauRibBPfPmU6KmrJGT8vVeyovQ9ew';
-$model = getenv('GEMINI_MODEL') ?: 'gemini-2.5-flash';
+$apiKey = EnvLoader::get('GEMINI_API_KEY', '');
+$model = EnvLoader::get('GEMINI_MODEL', 'gemini-2.5-flash');
 
 try {
     switch ($action) {

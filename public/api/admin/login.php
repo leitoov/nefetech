@@ -1,7 +1,6 @@
 <?php
 /**
- * Admin Auth - Login para panel de administración
- * Credenciales autorizadas: leonelexequielvincent@gmail.com o lvincent | pass: Codigo.1818@@
+ * Admin Auth - Login para panel de administración (credenciales desde .env)
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -23,7 +22,16 @@ require_once __DIR__ . '/../utils/EnvLoader.php';
 require_once __DIR__ . '/../utils/JWT.php';
 EnvLoader::load();
 
-$secret = EnvLoader::get('JWT_SECRET', 'nefetech_jwt_super_secret_key_2026');
+$secret = EnvLoader::get('JWT_SECRET', '');
+$adminEmail = EnvLoader::get('ADMIN_EMAIL', '');
+$adminUsername = EnvLoader::get('ADMIN_USERNAME', '');
+$adminPassword = EnvLoader::get('ADMIN_PASSWORD', '');
+
+if (empty($secret) || empty($adminPassword) || (empty($adminEmail) && empty($adminUsername))) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Configuración de autenticación incompleta en el servidor.']);
+    exit;
+}
 
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true) ?: [];
@@ -31,14 +39,13 @@ $data = json_decode($raw, true) ?: [];
 $user = trim($data['username'] ?? '');
 $password = trim($data['password'] ?? '');
 
-$validUsers = ['leonelexequielvincent@gmail.com', 'lvincent'];
-$validPass = 'Codigo.1818@@';
+$validUsers = array_filter([$adminEmail, $adminUsername], fn($v) => $v !== '');
 
-if (in_array(strtolower($user), array_map('strtolower', $validUsers)) && $password === $validPass) {
+if ($user !== '' && in_array(strtolower($user), array_map('strtolower', $validUsers), true) && hash_equals($adminPassword, $password)) {
     // Generar token JWT con rol admin (duración 8 horas)
     $payload = [
-        'sub' => 'admin_lvincent',
-        'email' => 'leonelexequielvincent@gmail.com',
+        'sub' => 'admin_' . ($adminUsername ?: 'user'),
+        'email' => $adminEmail,
         'role' => 'admin',
         'domain' => 'nefetech.online'
     ];
@@ -49,8 +56,8 @@ if (in_array(strtolower($user), array_map('strtolower', $validUsers)) && $passwo
         'success' => true,
         'token' => $token,
         'user' => [
-            'username' => 'lvincent',
-            'email' => 'leonelexequielvincent@gmail.com',
+            'username' => $adminUsername,
+            'email' => $adminEmail,
             'role' => 'admin'
         ]
     ]);

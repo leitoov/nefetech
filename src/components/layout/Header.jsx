@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../common/Icon';
-import logoNefetech from '../../assets/nefetech-logo.png';
+import { LogoIcon } from '../common/LogoIcon';
 import { WHATSAPP_URL } from '../../utils/constants';
 
 const navLinks = [
@@ -15,12 +15,11 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full bg-[#faf9f6]/85 backdrop-blur-md border-b border-[#dedfd7]/60">
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-5 py-3 sm:px-8">
-        <a href="#inicio" className="flex items-center shrink-0 transition-transform hover:scale-[1.02]">
-          <img
-            src={logoNefetech}
-            alt="Nefetech"
-            className="h-11 w-auto sm:h-13 object-contain"
-          />
+        <a href="#inicio" className="flex items-center gap-2.5 shrink-0 group">
+          <LogoIcon size={36} className="group-hover:scale-105" />
+          <span className="text-[20px] font-bold tracking-tight text-[#20251f]">
+            Nefe<span className="text-[#304cff]">tech</span>
+          </span>
         </a>
 
         <nav className="hidden md:flex items-center gap-2 rounded-full border border-[#dedfd7] bg-white px-2 py-1.5 text-[14px] font-medium text-[#20251f] shadow-2xs">

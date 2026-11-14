@@ -71,8 +71,10 @@ function App() {
     PageContent = <Privacidad />;
   }
 
+  const isLegalPage = currentHash === '#terminos' || currentHash === '#privacidad';
+
   return (
-    <Layout>
+    <Layout fullBleed={!isLegalPage}>
       {PageContent}
     </Layout>
   );

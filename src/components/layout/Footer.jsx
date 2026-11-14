@@ -1,86 +1,56 @@
-import React from 'react';
-import { Icon } from '../common/Icon';
-import { LogoIcon } from '../common/LogoIcon';
-import { WhatsAppIcon } from '../common/WhatsAppIcon';
+import logoNefetech from '../../assets/nefetech-logo.png';
 import { WHATSAPP_URL } from '../../utils/constants';
 
 export function Footer() {
   return (
-    <footer className="mt-auto border-t border-slate-100 bg-slate-50/70 pt-10 pb-8 text-slate-600">
-      <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Marca y contacto */}
-          <div className="md:col-span-2 space-y-3.5">
-            <div className="flex items-center gap-2.5">
-              <LogoIcon size={30} className="rounded-lg shadow-xs" />
-              <span className="text-lg font-bold tracking-tight text-slate-900">
-                Nefe<span className="text-blue-600">tech</span>
-              </span>
-            </div>
-            <p className="max-w-sm text-xs leading-relaxed text-slate-500">
-              Desarrollo de software de alto nivel, soluciones de Inteligencia Artificial y consultoría técnica para empresas en crecimiento.
+    <footer className="mt-auto w-full border-t border-[#dedfd7] bg-white">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-5 py-10 sm:px-8">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col items-start gap-2">
+            <a href="#inicio" className="inline-block">
+              <img
+                src={logoNefetech}
+                alt="Nefetech"
+                className="h-12 w-auto sm:h-14 object-contain"
+              />
+            </a>
+            <p className="max-w-md text-[13px] leading-relaxed text-[#656b63]">
+              Páginas web, chats con Inteligencia Artificial y automatizaciones simples para que tu negocio venda más y trabaje menos.
             </p>
-
-            {/* Badges de Contacto optimizados para Mobile y Desktop */}
-            <div className="pt-2 flex flex-col sm:flex-row sm:flex-wrap gap-2 text-xs">
-              <a
-                href="mailto:comercial@nefetech.online"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/90 text-slate-700 hover:text-blue-600 hover:border-blue-200 transition-all shadow-2xs group w-fit"
-              >
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <Icon name="mail" size={15} />
-                </div>
-                <span className="font-medium">comercial@nefetech.online</span>
-              </a>
-
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/90 text-slate-700 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-2xs group w-fit"
-              >
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                  <WhatsAppIcon size={15} />
-                </div>
-                <span className="font-medium">WhatsApp directo</span>
-              </a>
-            </div>
           </div>
 
-          {/* Enlaces: 2 columnas en mobile para ahorrar espacio vertical */}
-          <div className="grid grid-cols-2 gap-6 md:contents">
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-                <Icon name="explore" size={15} className="text-blue-600" />
-                Navegación
-              </h4>
-              <ul className="space-y-2.5 text-xs">
-                <li><a href="#inicio" className="text-slate-600 hover:text-blue-600 font-medium transition-colors block py-0.5">Inicio</a></li>
-                <li><a href="#servicios" className="text-slate-600 hover:text-blue-600 font-medium transition-colors block py-0.5">Servicios</a></li>
-                <li><a href="#contacto" className="text-slate-600 hover:text-blue-600 font-medium transition-colors block py-0.5">Contacto</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-                <Icon name="verified_user" size={15} className="text-blue-600" />
-                Legal
-              </h4>
-              <ul className="space-y-2.5 text-xs">
-                <li><a href="#terminos" className="text-slate-600 hover:text-blue-600 font-medium transition-colors block py-0.5">Términos</a></li>
-                <li><a href="#privacidad" className="text-slate-600 hover:text-blue-600 font-medium transition-colors block py-0.5">Privacidad</a></li>
-              </ul>
-            </div>
+          <div className="flex flex-wrap items-center gap-6 text-[13px]">
+            <a href="#soluciones" className="font-medium text-[#20251f] hover:text-[#304cff] transition-colors">
+              Qué armamos
+            </a>
+            <a href="#situaciones" className="font-medium text-[#20251f] hover:text-[#304cff] transition-colors">
+              Cómo te ayuda
+            </a>
+            <a href="#preguntas" className="font-medium text-[#20251f] hover:text-[#304cff] transition-colors">
+              Dudas
+            </a>
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-[#304cff] hover:text-[#233ce0] transition-colors"
+            >
+              WhatsApp ↗
+            </a>
           </div>
         </div>
 
-        {/* Barra inferior */}
-        <div className="mt-8 pt-6 border-t border-slate-200/60 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 text-center sm:text-left">
-          <span>&copy; {new Date().getFullYear()} Nefetech. Todos los derechos reservados.</span>
-          <span className="flex items-center gap-1 text-slate-500">
-            <Icon name="location_on" size={14} className="text-blue-500" />
-            Buenos Aires, Argentina
-          </span>
+        <div className="flex flex-col gap-3 border-t border-[#dedfd7] pt-6 text-[12px] text-[#656b63] sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} Nefetech · Webs, Chats con IA y Automatización.</p>
+          <div className="flex items-center gap-4">
+            <a href="#privacidad" className="hover:text-[#20251f] transition-colors">
+              Privacidad
+            </a>
+            <span aria-hidden="true">·</span>
+            <a href="#terminos" className="hover:text-[#20251f] transition-colors">
+              Términos y condiciones
+            </a>
+          </div>
         </div>
       </div>
     </footer>

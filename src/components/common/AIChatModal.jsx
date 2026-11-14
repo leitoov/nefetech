@@ -7,8 +7,8 @@ import { WHATSAPP_URL } from '../../utils/constants';
 const MAX_CHAR_LIMIT = 500;
 
 /**
- * Renderiza el texto del mensaje detectando números de WhatsApp y correos electrónicos
- * para convertirlos en enlaces interactivos y limpios.
+ * Renderiza el texto del mensaje soportando enlaces Markdown [texto](url),
+ * además de detectar números de WhatsApp, correos y URLs sueltas.
  */
 function renderMessageWithLinks(text) {
   if (!text) return null;
@@ -19,7 +19,8 @@ function renderMessageWithLinks(text) {
     const tokens = [];
     let lastIndex = 0;
 
-    const combinedRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+54\s?9?\s?11\s?\d{4}[-\s]?\d{4}|\+5491170605129)|(https?:\/\/[^\s]+)/gi;
+    // Prioriza enlaces Markdown [texto](url) antes de emails, teléfonos o URLs sueltas
+    const combinedRegex = /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)|([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+54\s?9?\s?11\s?\d{4}[-\s]?\d{4}|\+5491170605129)|(https?:\/\/[^\s)]+)/gi;
     let match;
 
     while ((match = combinedRegex.exec(line)) !== null) {
@@ -27,13 +28,30 @@ function renderMessageWithLinks(text) {
         tokens.push({ type: 'text', val: line.substring(lastIndex, match.index) });
       }
 
-      const matchStr = match[0];
-      if (matchStr.includes('@')) {
-        tokens.push({ type: 'email', val: matchStr });
-      } else if (matchStr.startsWith('http')) {
-        tokens.push({ type: 'url', val: matchStr });
+      if (match[1] && match[2]) {
+        const label = match[1];
+        const href = match[2];
+        if (href.startsWith('mailto:')) {
+          tokens.push({ type: 'email', val: label, href });
+        } else if (href.includes('wa.me/')) {
+          tokens.push({ type: 'whatsapp', val: label, href });
+        } else {
+          tokens.push({ type: 'url', val: label, href });
+        }
       } else {
-        tokens.push({ type: 'whatsapp', val: matchStr });
+        const matchStr = match[0];
+        if (matchStr.includes('@')) {
+          tokens.push({ type: 'email', val: matchStr, href: `mailto:${matchStr}` });
+        } else if (matchStr.startsWith('http')) {
+          tokens.push({ type: 'url', val: matchStr, href: matchStr });
+        } else {
+          const cleanPhone = matchStr.replace(/[^0-9]/g, '');
+          tokens.push({
+            type: 'whatsapp',
+            val: matchStr,
+            href: `https://wa.me/${cleanPhone}?text=Hola,%20vengo%20del%20chat%20de%20Nefetech%20y%20quiero%20hacer%20una%20consulta.`,
+          });
+        }
       }
       lastIndex = combinedRegex.lastIndex;
     }
@@ -49,7 +67,7 @@ function renderMessageWithLinks(text) {
             return (
               <a
                 key={tokIdx}
-                href={`mailto:${token.val}`}
+                href={token.href}
                 className="font-semibold text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-600 underline-offset-2 transition-colors inline-flex items-center gap-0.5 mx-0.5"
                 title={`Enviar correo a ${token.val}`}
               >
@@ -59,12 +77,10 @@ function renderMessageWithLinks(text) {
           }
 
           if (token.type === 'whatsapp') {
-            const cleanPhone = token.val.replace(/[^0-9]/g, '');
-            const waLink = `https://wa.me/${cleanPhone}?text=Hola,%20vengo%20del%20chat%20de%20Nefetech%20y%20quiero%20hacer%20una%20consulta.`;
             return (
               <a
                 key={tokIdx}
-                href={waLink}
+                href={token.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-emerald-600 hover:text-emerald-700 underline decoration-emerald-300 hover:decoration-emerald-500 underline-offset-2 transition-colors inline-flex items-center gap-1 mx-0.5"
@@ -80,7 +96,7 @@ function renderMessageWithLinks(text) {
             return (
               <a
                 key={tokIdx}
-                href={token.val}
+                href={token.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-blue-600 hover:underline inline-block break-all"

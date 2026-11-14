@@ -1,77 +1,83 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '../common/Icon';
-import { LogoIcon } from '../common/LogoIcon';
+import logoNefetech from '../../assets/nefetech-logo.png';
+import { WHATSAPP_URL } from '../../utils/constants';
+
+const navLinks = [
+  { label: 'Qué armamos', href: '#soluciones' },
+  { label: 'Cómo te ayuda', href: '#situaciones' },
+  { label: 'Dudas', href: '#preguntas' },
+];
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/95 backdrop-blur-md">
-      <div className="w-full flex items-center justify-between px-6 sm:px-10 lg:px-14 py-3.5">
-        {/* Logo a la izquierda extrema */}
-        <a href="#inicio" className="flex items-center gap-3 group">
-          <LogoIcon size={36} className="group-hover:scale-105 shadow-sm shadow-blue-500/20 rounded-xl" />
-          <span className="text-xl font-extrabold tracking-tight text-slate-900">
-            Nefe<span className="text-blue-600">tech</span>
-          </span>
+    <header className="sticky top-0 z-50 w-full bg-[#faf9f6]/85 backdrop-blur-md border-b border-[#dedfd7]/60">
+      <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-5 py-3 sm:px-8">
+        <a href="#inicio" className="flex items-center shrink-0 transition-transform hover:scale-[1.02]">
+          <img
+            src={logoNefetech}
+            alt="Nefetech"
+            className="h-11 w-auto sm:h-13 object-contain"
+          />
         </a>
 
-        {/* Navegación a la derecha */}
-        <nav className="hidden md:flex items-center gap-8">
-          <a
-            href="#inicio"
-            className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            Inicio
-          </a>
-          <a
-            href="#servicios"
-            className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
-          >
-            Servicios
-          </a>
-          <a
-            href="#contacto"
-            className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
-          >
-            Contacto
-          </a>
+        <nav className="hidden md:flex items-center gap-2 rounded-full border border-[#dedfd7] bg-white px-2 py-1.5 text-[14px] font-medium text-[#20251f] shadow-2xs">
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="rounded-full px-4 py-1.5 hover:bg-[#f0f1eb] hover:text-[#304cff] transition-colors whitespace-nowrap"
+            >
+              {link.label}
+            </a>
+          ))}
         </nav>
 
-        {/* Botón Móvil */}
+        <div className="hidden md:flex items-center shrink-0">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-[#304cff] px-5 py-2.5 text-[14px] font-semibold text-white shadow-sm shadow-[#304cff]/25 transition-all hover:bg-[#233ce0] hover:-translate-y-0.5 active:scale-95"
+          >
+            <span>Hablemos</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+
         <button
           type="button"
-          className="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:outline-none cursor-pointer"
+          className="md:hidden inline-flex items-center justify-center rounded-full border border-[#dedfd7] bg-white p-2 text-[#20251f] hover:bg-[#f0f1eb] focus:outline-none cursor-pointer"
           onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
+          aria-label="Abrir menú"
         >
-          <Icon name={menuOpen ? 'close' : 'menu'} size={24} />
+          <Icon name={menuOpen ? 'close' : 'menu'} size={22} />
         </button>
       </div>
 
-      {/* Menú Móvil */}
       {menuOpen && (
-        <div className="md:hidden border-b border-slate-100 bg-white px-6 pt-2 pb-5 space-y-3 shadow-lg">
+        <div className="md:hidden border-t border-[#dedfd7] bg-white px-5 pt-3 pb-5 space-y-2 shadow-lg">
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="block rounded-xl px-3 py-2.5 text-[15px] font-medium text-[#20251f] hover:bg-[#f0f1eb] hover:text-[#304cff]"
+              onClick={() => setMenuOpen(false)}
+            >
+              {link.label}
+            </a>
+          ))}
           <a
-            href="#inicio"
-            className="block text-sm font-semibold text-blue-600 py-1"
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={() => setMenuOpen(false)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[#304cff] px-5 py-3 text-[15px] font-semibold text-white"
           >
-            Inicio
-          </a>
-          <a
-            href="#servicios"
-            className="block text-sm font-medium text-slate-600 hover:text-blue-600 py-1"
-            onClick={() => setMenuOpen(false)}
-          >
-            Servicios
-          </a>
-          <a
-            href="#contacto"
-            className="block text-sm font-medium text-slate-600 hover:text-blue-600 py-1"
-            onClick={() => setMenuOpen(false)}
-          >
-            Contacto
+            <span>Hablemos por WhatsApp</span>
+            <span aria-hidden="true">↗</span>
           </a>
         </div>
       )}
